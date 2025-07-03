@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @SuperBuilder
 @Data
 public class ChatEntryEnhanced extends ChatEntry {
-    public enum Type {ORDINAL, FILE, IMAGE, VIDEO, AUDIO, LOCATION, CONTACT, POLL, STICKER, UNKNOWN}
+    public enum Type {TEXT, FILE, DOCUMENT, IMAGE, VIDEO, AUDIO, LOCATION, CONTACT, POLL, STICKER, UNKNOWN}
 
     private LocalDateTime localDateTime;
     private Type type;

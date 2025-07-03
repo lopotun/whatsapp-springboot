@@ -49,7 +49,30 @@ public class ChatEntryEnhancer {
     }
 
     private static ChatEntryEnhanced.Type determineType(ChatEntry chatEntry) {
-        return ChatEntryEnhanced.Type.UNKNOWN;
+        ChatEntryEnhanced.Type res = ChatEntryEnhanced.Type.UNKNOWN;
+        String fileName = chatEntry.getFileName();
+        if (fileName != null && !fileName.isEmpty()) {
+            String extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+            res = switch (extension) {
+                case ".jpg", ".jpeg", ".png" -> ChatEntryEnhanced.Type.IMAGE;
+                case ".mp4", ".mov" -> ChatEntryEnhanced.Type.VIDEO;
+                case ".mp3", ".wav" -> ChatEntryEnhanced.Type.AUDIO;
+                case ".doc", ".docx", ".pdf", ".ppt", ".pptx", ".xls", ".xlsx" -> ChatEntryEnhanced.Type.DOCUMENT;
+                default -> ChatEntryEnhanced.Type.FILE;
+            };
+        } else {
+            String payload = chatEntry.getPayload();
+            if (payload != null) {
+                res = switch (payload) {
+                    case String p when p.startsWith("sticker:") -> ChatEntryEnhanced.Type.STICKER; //todo check if this is correct
+                    case String p when p.startsWith("contact:") -> ChatEntryEnhanced.Type.CONTACT; //todo check if this is correct
+                    case String p when p.startsWith("location:") -> ChatEntryEnhanced.Type.LOCATION;
+                    case String p when p.startsWith("POLL:") -> ChatEntryEnhanced.Type.POLL;
+                    default -> ChatEntryEnhanced.Type.TEXT;
+                };
+            }
+        }
+        return res;
     }
 
     private static LocalDateTime parseTimestamp(String timestampString) {
