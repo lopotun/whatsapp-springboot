@@ -380,3 +380,8 @@ Event Location Point: LocationPoint(latitude=0.0, longitude=0.0)
 7/3/25, 22:47 - Freddie Kruger: <Video note omitted>
 7/3/25, 22:48 - Freddie Kruger: DOC-20250703-WA0013.zip (file attached)
 7/4/25, 07:28 - Freddie Kruger: https://www.facebook.com/share/r/1ASWwwSDw9/
+7/6/25, 19:07 - Freddie Kruger: POLL:
+Famous band
+OPTION: ABBA (1 vote)
+OPTION: BoneyM (0 votes)
+OPTION: Modern Talking (1 vote)

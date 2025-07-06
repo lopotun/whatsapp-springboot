@@ -1,6 +1,7 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEnhancer;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,8 +74,6 @@ class ChatServiceTest {
 
         assertEquals(1, entries.size());
         ChatEntry entry = entries.getFirst();
-//        ChatEntryEnhancer chatEntryEnhancer = ChatEntryEnhancer.builder().timestamp(true).chatType(false).build();
-//        chatEntryEnhancer.enhance(entry);
         assertEquals("11/16/23, 10:32", entry.getTimestamp());
         assertEquals("Eugene Kurtzer", entry.getAuthor());
         assertTrue(entry.getPayload().contains("В 08:40"));
@@ -106,12 +105,16 @@ class ChatServiceTest {
         try(InputStream is = new FileInputStream("src/test/resources/WhatsAppChat.txt")) {
             List<ChatEntry> entries = processChat(is);
 
-            assertEquals(270, entries.size());//109
-            assertEquals(35, entries.stream().filter(e -> e.getFileName() != null).count());//20
+            assertEquals(271, entries.size());
+            assertEquals(35, entries.stream().filter(e -> e.getFileName() != null).count());
 
-            assertEquals("Test.", entries.get(0).getPayload());
-            assertEquals("IMG-20231105-WA0008.jpg", entries.get(1).getFileName());
-            assertEquals("Multi\nline\nmessage", entries.get(2).getPayload());
+            // Test the enhancement logic
+            List<ChatEntry> enhanced = ChatEntryEnhancer.enhance(entries, true, true);
+            assertEquals(5, enhanced.stream().filter(e -> e.getType() == ChatEntry.Type.DOCUMENT).count());
+            assertEquals(3, enhanced.stream().filter(e -> e.getType() == ChatEntry.Type.LOCATION).count());
+            assertEquals(1, enhanced.stream().filter(e -> e.getType() == ChatEntry.Type.CONTACT).count());
+            assertEquals(1, enhanced.stream().filter(e -> e.getType() == ChatEntry.Type.POLL).count());
+            assertEquals(1, enhanced.stream().filter(e -> e.getType() == ChatEntry.Type.STICKER).count());
         } catch (Exception e) {
             fail("Failed to read chat file: " + e.getMessage());
         }

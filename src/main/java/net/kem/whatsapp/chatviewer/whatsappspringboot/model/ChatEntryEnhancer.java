@@ -11,7 +11,7 @@ import java.util.function.Predicate;
 
 @UtilityClass
 public class ChatEntryEnhancer {
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("M/d/yy, hh:mm");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("M/d/yy, HH:mm");
 
     @NonNull
     public List<ChatEntry> enhance(@NonNull List<ChatEntry> chatEntries, boolean timestamp, boolean chatType) {
@@ -52,7 +52,9 @@ public class ChatEntryEnhancer {
             res = switch (extension) {
                 case ".jpg", ".jpeg", ".png" -> ChatEntry.Type.IMAGE;
                 case ".mp4", ".mov" -> ChatEntry.Type.VIDEO;
-                case ".mp3", ".wav" -> ChatEntry.Type.AUDIO;
+                case ".aac", ".mp3", ".wav" -> ChatEntry.Type.AUDIO;
+                case ".was" -> ChatEntry.Type.STICKER;
+                case ".vcf" -> ChatEntry.Type.CONTACT;
                 case ".doc", ".docx", ".pdf", ".ppt", ".pptx", ".xls", ".xlsx" -> ChatEntry.Type.DOCUMENT;
                 default -> ChatEntry.Type.FILE;
             };
@@ -60,8 +62,6 @@ public class ChatEntryEnhancer {
             String payload = chatEntry.getPayload();
             if (payload != null) {
                 res = switch (payload) {
-                    case String p when p.startsWith("sticker:") -> ChatEntry.Type.STICKER; //todo check if this is correct
-                    case String p when p.startsWith("contact:") -> ChatEntry.Type.CONTACT; //todo check if this is correct
                     case String p when p.startsWith("location:") -> ChatEntry.Type.LOCATION;
                     case String p when p.startsWith("POLL:") -> ChatEntry.Type.POLL;
                     default -> ChatEntry.Type.TEXT;
@@ -72,7 +72,6 @@ public class ChatEntryEnhancer {
     }
 
     private static LocalDateTime parseTimestamp(String timestampString) {
-//        timestampString = timestampString.replace(' ', ' ').toLowerCase(); // Replace non-breaking space with regular space
         return LocalDateTime.parse(timestampString, DATE_TIME_FORMATTER);
     }
 }
