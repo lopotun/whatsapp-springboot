@@ -1,5 +1,7 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,32 @@ public class ChatController {
 
     @PostMapping("/upload")
     public ResponseEntity<StreamingResponseBody> uploadChat(@RequestParam("file") MultipartFile file) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+
+        StreamingResponseBody responseBody = outputStream -> {
+            try {
+                chatService.streamChatFile(file.getInputStream(), entry -> {
+                    try {
+                        objectMapper.writeValue(outputStream, entry);
+                        outputStream.write('\n');
+                        outputStream.flush();
+                    } catch (IOException e) {
+                        throw new RuntimeException("Error writing to output stream", e);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException("Error processing file", e);
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_NDJSON)
+                .body(responseBody);
+    }
+
+    @PostMapping("/uploadX")
+    public ResponseEntity<StreamingResponseBody> uploadChatX(@RequestParam("file") MultipartFile file) {
         StreamingResponseBody responseBody = outputStream -> {
             try {
                 chatService.streamChatFile(file.getInputStream(), entry -> {

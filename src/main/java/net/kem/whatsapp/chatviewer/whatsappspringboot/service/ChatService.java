@@ -15,8 +15,10 @@ import java.util.regex.Pattern;
 @Slf4j
 @Service
 public class ChatService {
-    private static final Pattern TIMESTAMP_PATTERN =
+    private static final Pattern TIMESTAMP_PATTERN_AMPM =
             Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s+\\d{1,2}:\\d{2} +[AP]M)\\s-\\s");
+    private static final Pattern TIMESTAMP_PATTERN =
+            Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s\\d{1,2}:\\d{2})\\s-\\s");
 
     public void streamChatFile(InputStream inputStream, Consumer<ChatEntry> entryConsumer) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));

@@ -1,7 +1,6 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEnhancer;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +10,6 @@ import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,12 +23,12 @@ class ChatServiceTest {
 
     @Test
     void shouldParseRegularMessage() {
-        String chat = "9/4/23, 7:34 PM - Eugene Kurtzer: Test.\n";
+        String chat = "9/4/23, 7:34 - Eugene Kurtzer: Test.\n";
         List<ChatEntry> entries = processChat(chat);
 
         assertEquals(1, entries.size());
         ChatEntry entry = entries.getFirst();
-        assertEquals("9/4/23, 7:34 PM", entry.getTimestamp());
+        assertEquals("9/4/23, 7:34", entry.getTimestamp());
         assertEquals("Eugene Kurtzer", entry.getAuthor());
         assertEquals("Test.", entry.getPayload());
         assertNull(entry.getFileName());
@@ -38,12 +36,12 @@ class ChatServiceTest {
 
     @Test
     void shouldParseFileAttachment() {
-        String chat = "11/5/23, 1:40 PM - Eugene Kurtzer: IMG-20231105-WA0008.jpg (file attached)\n";
+        String chat = "11/5/23, 1:40 - Eugene Kurtzer: IMG-20231105-WA0008.jpg (file attached)\n";
         List<ChatEntry> entries = processChat(chat);
 
         assertEquals(1, entries.size());
         ChatEntry entry = entries.getFirst();
-        assertEquals("11/5/23, 1:40 PM", entry.getTimestamp());
+        assertEquals("11/5/23, 1:40", entry.getTimestamp());
         assertEquals("Eugene Kurtzer", entry.getAuthor());
         assertNull(entry.getPayload());
         assertEquals("IMG-20231105-WA0008.jpg", entry.getFileName());
@@ -51,12 +49,12 @@ class ChatServiceTest {
 
     @Test
     void shouldParseFileAttachmentWithTest() {
-        String chat = "11/5/23, 1:40 PM - Eugene Kurtzer: IMG-20231105-WA0008.jpg (file attached)\nSome test.";
+        String chat = "11/5/23, 1:40 - Eugene Kurtzer: IMG-20231105-WA0008.jpg (file attached)\nSome test.";
         List<ChatEntry> entries = processChat(chat);
 
         assertEquals(1, entries.size());
         ChatEntry entry = entries.getFirst();
-        assertEquals("11/5/23, 1:40 PM", entry.getTimestamp());
+        assertEquals("11/5/23, 1:40", entry.getTimestamp());
         assertEquals("Eugene Kurtzer", entry.getAuthor());
         assertEquals("Some test.", entry.getPayload());
         assertEquals("IMG-20231105-WA0008.jpg", entry.getFileName());
@@ -65,7 +63,7 @@ class ChatServiceTest {
     @Test
     void shouldParseMultilineMessage() {
         String chat = """
-            11/16/23, 10:32 PM - Eugene Kurtzer: В 08:40
+            11/16/23, 10:32 - Eugene Kurtzer: В 08:40
             1. Показать результаты МРТ -- невропатолог написал, что нужно сделать анализы крови.
             2. Взять направление к эндокринологу.
             3. Продлить направление на анализ крови.
@@ -77,7 +75,7 @@ class ChatServiceTest {
         ChatEntry entry = entries.getFirst();
 //        ChatEntryEnhancer chatEntryEnhancer = ChatEntryEnhancer.builder().timestamp(true).chatType(false).build();
 //        chatEntryEnhancer.enhance(entry);
-        assertEquals("11/16/23, 10:32 PM", entry.getTimestamp());
+        assertEquals("11/16/23, 10:32", entry.getTimestamp());
         assertEquals("Eugene Kurtzer", entry.getAuthor());
         assertTrue(entry.getPayload().contains("В 08:40"));
         assertTrue(entry.getPayload().contains("1. Показать результаты МРТ"));
@@ -87,9 +85,9 @@ class ChatServiceTest {
     @Test
     void shouldParseMultipleMessages() {
         String chat = """
-            9/4/23, 7:34 PM - Eugene Kurtzer: Test.
-            11/5/23, 1:40 PM - Eugene Kurtzer: IMG-20231105-WA0008.jpg (file attached)
-            11/16/23, 10:32 PM - Eugene Kurtzer: Multi
+            9/4/23, 7:34 - Eugene Kurtzer: Test.
+            11/5/23, 1:40 - Eugene Kurtzer: IMG-20231105-WA0008.jpg (file attached)
+            11/16/23, 10:32 - Eugene Kurtzer: Multi
             line
             message
             """;
@@ -105,11 +103,12 @@ class ChatServiceTest {
     @Disabled
     @Test
     void shouldParseMultipleMessagesFromFile() {
-        try(InputStream is = new FileInputStream("src/test/resources/WhatsApp Chat with +972 00-000-0000.txt")) {
+        try(InputStream is = new FileInputStream("src/test/resources/WhatsAppChat.txt")) {
             List<ChatEntry> entries = processChat(is);
 
-            assertEquals(109, entries.size());
-            assertEquals(20, entries.stream().filter(e -> e.getFileName() != null).count());
+            assertEquals(270, entries.size());//109
+            assertEquals(35, entries.stream().filter(e -> e.getFileName() != null).count());//20
+
             assertEquals("Test.", entries.get(0).getPayload());
             assertEquals("IMG-20231105-WA0008.jpg", entries.get(1).getFileName());
             assertEquals("Multi\nline\nmessage", entries.get(2).getPayload());
