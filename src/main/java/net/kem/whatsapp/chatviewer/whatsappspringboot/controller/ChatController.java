@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -68,6 +69,45 @@ public class ChatController {
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(responseBody);
+    }
+
+    @PostMapping("/upload-zip")
+    public ResponseEntity<StreamingResponseBody> uploadZipFile(@RequestParam("file") MultipartFile file) {
+        if (!file.getOriginalFilename().toLowerCase().endsWith(".zip")) {
+            return ResponseEntity.badRequest()
+                    .body(outputStream -> outputStream.write("Only ZIP files are allowed".getBytes()));
+        }
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+
+        StreamingResponseBody responseBody = outputStream -> {
+            try {
+                List<String> extractedFiles = chatService.processZipFile(file.getInputStream(), entry -> {
+                    try {
+                        objectMapper.writeValue(outputStream, entry);
+                        outputStream.write('\n');
+                        outputStream.flush();
+                    } catch (IOException e) {
+                        throw new RuntimeException("Error writing to output stream", e);
+                    }
+                });
+                
+                // Write summary of extracted files
+                outputStream.write(("\nExtracted " + extractedFiles.size() + " multimedia files:\n").getBytes());
+                for (String filePath : extractedFiles) {
+                    outputStream.write((filePath + "\n").getBytes());
+                }
+                outputStream.flush();
+                
+            } catch (IOException e) {
+                throw new RuntimeException("Error processing zip file", e);
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_NDJSON)
                 .body(responseBody);
     }
 }

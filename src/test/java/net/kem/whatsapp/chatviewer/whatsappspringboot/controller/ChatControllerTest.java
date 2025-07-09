@@ -16,9 +16,11 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -142,5 +144,66 @@ class ChatControllerTest {
     void uploadChat_withoutFile_shouldReturnBadRequest() throws Exception {
         mockMvc.perform(multipart("/api/chat/upload"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void uploadZipFile_shouldProcessZipFile() throws Exception {
+        // Create a simple zip file content for testing
+        byte[] zipContent = createTestZipContent();
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test.zip",
+                "application/zip",
+                zipContent
+        );
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<ChatEntry> consumer = (Consumer<ChatEntry>) invocation.getArgument(1, Consumer.class);
+            consumer.accept(ChatEntry.builder()
+                    .timestamp("6/21/24, 7:19")
+                    .payload("Test Entry from Zip")
+                    .build());
+            return List.of("/path/to/extracted/file1.jpg", "/path/to/extracted/file2.mp4");
+        }).when(chatService).processZipFile(any(InputStream.class), any(Consumer.class));
+
+        var mvcResult = mockMvc.perform(multipart("/api/chat/upload-zip").file(file))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_NDJSON))
+                .andExpect(content().string(containsString("Test Entry from Zip")));
+    }
+
+    @Test
+    void uploadZipFile_withNonZipFile_shouldReturnBadRequest() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test.txt",
+                "text/plain",
+                "not a zip file".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/chat/upload-zip").file(file))
+                .andExpect(status().isBadRequest());
+    }
+
+    private byte[] createTestZipContent() {
+        // This is a minimal valid ZIP file structure for testing
+        // In a real test, you might want to create an actual ZIP file with test content
+        return new byte[] {
+            0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x50, 0x4B, 0x01, 0x02, 0x14, 0x00, 0x14, 0x00, 0x00, 0x00,
+            0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x50, 0x4B, 0x05, 0x06,
+            0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x2C, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
     }
 }

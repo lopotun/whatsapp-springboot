@@ -13,8 +13,15 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 class ChatServiceTest {
@@ -118,6 +125,52 @@ class ChatServiceTest {
         } catch (Exception e) {
             fail("Failed to read chat file: " + e.getMessage());
         }
+    }
+
+    @Test
+    void processZipFile_shouldExtractFilesAndProcessChat() throws Exception {
+        // Create a test zip file with a chat text file and a multimedia file
+        byte[] zipContent = createTestZipWithChatAndMedia();
+        
+        List<String> extractedFiles = new ArrayList<>();
+        List<ChatEntry> processedEntries = new ArrayList<>();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            List<String> result = chatService.processZipFile(inputStream, entry -> {
+                processedEntries.add(entry);
+            });
+            extractedFiles = result;
+        }
+        
+        // Verify that files were extracted
+        assertThat(extractedFiles).isNotEmpty();
+        
+        // Verify that chat entries were processed
+        assertThat(processedEntries).isNotEmpty();
+        
+        // Clean up extracted files
+        for (String filePath : extractedFiles) {
+            Files.deleteIfExists(Paths.get(filePath));
+        }
+    }
+    
+    private byte[] createTestZipWithChatAndMedia() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // Add a chat text file
+            ZipEntry chatEntry = new ZipEntry("chat.txt");
+            zos.putNextEntry(chatEntry);
+            String chatContent = "6/21/24, 7:19 - Test User: Hello World\n";
+            zos.write(chatContent.getBytes());
+            zos.closeEntry();
+            
+            // Add a multimedia file
+            ZipEntry mediaEntry = new ZipEntry("test-image.jpg");
+            zos.putNextEntry(mediaEntry);
+            zos.write("fake image content".getBytes());
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
     }
 
     private List<ChatEntry> processChat(String chat) {

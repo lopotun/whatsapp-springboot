@@ -2,15 +2,24 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
 import lombok.extern.slf4j.Slf4j;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Slf4j
 @Service
@@ -19,6 +28,12 @@ public class ChatService {
             Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s+\\d{1,2}:\\d{2} +[AP]M)\\s-\\s");
     private static final Pattern TIMESTAMP_PATTERN =
             Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s\\d{1,2}:\\d{2})\\s-\\s");
+
+    @Value("${app.multimedia.storage.path}")
+    private String multimediaStoragePath;
+
+    @Autowired
+    private FileNamingService fileNamingService;
 
     public void streamChatFile(InputStream inputStream, Consumer<ChatEntry> entryConsumer) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
@@ -91,5 +106,135 @@ public class ChatService {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Processes a zip file containing multimedia files and a WhatsApp chat text file.
+     * Extracts multimedia files to content-based locations using SHA-256 hashing.
+     * 
+     * @param zipInputStream The zip file input stream
+     * @param entryConsumer Consumer to process chat entries
+     * @return List of extracted multimedia file paths
+     */
+    public List<String> processZipFile(InputStream zipInputStream, Consumer<ChatEntry> entryConsumer) {
+        List<String> extractedFiles = new ArrayList<>();
+        Path tempDir = Paths.get(multimediaStoragePath, "temp");
+        
+        // Create temp directory if it doesn't exist
+        try {
+            if (!Files.exists(tempDir)) {
+                Files.createDirectories(tempDir);
+                log.debug("Created temp directory: {}", tempDir);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create temp directory", e);
+        }
+
+        try (ZipInputStream zis = new ZipInputStream(zipInputStream)) {
+            ZipEntry entry;
+            InputStream chatTextStream = null;
+            
+            while ((entry = zis.getNextEntry()) != null) {
+                String fileName = entry.getName();
+                log.debug("Processing zip entry: {}", fileName);
+                
+                if (isTextFile(fileName)) {
+                    // This is the chat text file - read it into memory for processing
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[1024];
+                    int len;
+                    while ((len = zis.read(buffer)) > 0) {
+                        baos.write(buffer, 0, len);
+                    }
+                    chatTextStream = new ByteArrayInputStream(baos.toByteArray());
+                } else if (!entry.isDirectory()) {
+                    // This is a multimedia file - extract to temp location and calculate hash simultaneously
+                    Path tempFile = tempDir.resolve(fileName);
+                    
+                    // Calculate hash while copying to temp location
+                    String contentHash = copyAndCalculateHash(zis, tempFile);
+                    log.debug("Copied file to temp location: {} with hash: {}", tempFile, contentHash);
+                    
+                    // Move to final content-based location using pre-calculated hash
+                    try {
+                        Path finalPath = fileNamingService.moveToFinalLocationWithHash(tempFile, fileName, contentHash);
+                        extractedFiles.add(finalPath.toString());
+                        log.info("Extracted multimedia file: {}", finalPath);
+                    } catch (IOException e) {
+                        log.error("Failed to move file {} to final location", fileName, e);
+                        // Clean up temp file
+                        try {
+                            Files.deleteIfExists(tempFile);
+                        } catch (IOException cleanupEx) {
+                            log.warn("Failed to cleanup temp file: {}", tempFile, cleanupEx);
+                        }
+                    }
+                }
+                
+                zis.closeEntry();
+            }
+            
+            // Process the chat text file if found
+            if (chatTextStream != null) {
+                streamChatFile(chatTextStream, entryConsumer);
+            } else {
+                log.warn("No text file found in the zip archive");
+            }
+            
+        } catch (IOException e) {
+            throw new RuntimeException("Error processing zip file", e);
+        }
+        
+        return extractedFiles;
+    }
+    
+    /**
+     * Determines if a file is a text file based on its extension.
+     */
+    private boolean isTextFile(String fileName) {
+        String lowerFileName = fileName.toLowerCase();
+        return lowerFileName.endsWith(".txt") || 
+               lowerFileName.endsWith(".text") || 
+               lowerFileName.endsWith(".log");
+    }
+    
+    /**
+     * Copies data from ZipInputStream to a file while calculating SHA-256 hash.
+     * 
+     * @param zis The ZipInputStream to read from
+     * @param targetFile The target file to write to
+     * @return The SHA-256 hash of the content
+     * @throws IOException If I/O operations fail
+     */
+    private String copyAndCalculateHash(ZipInputStream zis, Path targetFile) throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            
+            // Ensure parent directory exists
+            Path parentDir = targetFile.getParent();
+            if (!Files.exists(parentDir)) {
+                Files.createDirectories(parentDir);
+            }
+            
+            try (OutputStream out = Files.newOutputStream(targetFile)) {
+                int len;
+                while ((len = zis.read(buffer)) > 0) {
+                    out.write(buffer, 0, len);
+                    digest.update(buffer, 0, len);
+                }
+            }
+            
+            // Convert digest to hex string
+            byte[] hash = digest.digest();
+            StringBuilder result = new StringBuilder();
+            for (byte b : hash) {
+                result.append(String.format("%02x", b));
+            }
+            return result.toString();
+            
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 }
