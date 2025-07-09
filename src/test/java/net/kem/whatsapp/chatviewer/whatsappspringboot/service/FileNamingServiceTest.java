@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +32,7 @@ class FileNamingServiceTest {
         // Clean up test directory before each test
         try {
             Files.walk(Paths.get("./test-multimedia-files"))
-                    .sorted((a, b) -> b.compareTo(a)) // Delete files first, then directories
+                    .sorted(Comparator.reverseOrder()) // Delete files first, then directories
                     .forEach(path -> {
                         try {
                             Files.deleteIfExists(path);

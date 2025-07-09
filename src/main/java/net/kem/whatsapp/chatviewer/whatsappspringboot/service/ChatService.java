@@ -6,11 +6,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -24,16 +25,34 @@ import java.util.zip.ZipInputStream;
 @Slf4j
 @Service
 public class ChatService {
-    private static final Pattern TIMESTAMP_PATTERN_AMPM =
-            Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s+\\d{1,2}:\\d{2} +[AP]M)\\s-\\s");
+    // private static final Pattern TIMESTAMP_PATTERN_AMPM =
+            // Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s+\\d{1,2}:\\d{2} +[AP]M)\\s-\\s");
     private static final Pattern TIMESTAMP_PATTERN =
             Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s\\d{1,2}:\\d{2})\\s-\\s");
 
     @Value("${app.multimedia.storage.path}")
     private String multimediaStoragePath;
 
-    @Autowired
-    private FileNamingService fileNamingService;
+    private Path tempDir;
+
+    public ChatService(@Autowired FileNamingService fileNamingService) {
+        this.fileNamingService = fileNamingService;
+    }
+
+    @PostConstruct
+    public void init() {
+        tempDir = Paths.get(multimediaStoragePath, "temp");
+        try {
+            if (!Files.exists(tempDir)) {
+                Files.createDirectories(tempDir);
+                log.debug("Created temp directory: {}", tempDir);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create temp directory", e);
+        }
+    }
+
+    private final FileNamingService fileNamingService;
 
     public void streamChatFile(InputStream inputStream, Consumer<ChatEntry> entryConsumer) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
@@ -118,18 +137,7 @@ public class ChatService {
      */
     public List<String> processZipFile(InputStream zipInputStream, Consumer<ChatEntry> entryConsumer) {
         List<String> extractedFiles = new ArrayList<>();
-        Path tempDir = Paths.get(multimediaStoragePath, "temp");
         
-        // Create temp directory if it doesn't exist
-        try {
-            if (!Files.exists(tempDir)) {
-                Files.createDirectories(tempDir);
-                log.debug("Created temp directory: {}", tempDir);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create temp directory", e);
-        }
-
         try (ZipInputStream zis = new ZipInputStream(zipInputStream)) {
             ZipEntry entry;
             InputStream chatTextStream = null;

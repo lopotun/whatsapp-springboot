@@ -74,6 +74,14 @@ public class ChatController {
 
     @PostMapping("/upload-zip")
     public ResponseEntity<StreamingResponseBody> uploadZipFile(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(outputStream -> outputStream.write("File is empty".getBytes()));
+        }
+        if (file.getOriginalFilename() == null) {
+            return ResponseEntity.badRequest()
+                    .body(outputStream -> outputStream.write("Cannot get chat file name".getBytes()));
+        }
         if (!file.getOriginalFilename().toLowerCase().endsWith(".zip")) {
             return ResponseEntity.badRequest()
                     .body(outputStream -> outputStream.write("Only ZIP files are allowed".getBytes()));

@@ -3,6 +3,7 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.controller;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -72,7 +72,7 @@ class ChatControllerTest {
                     .payload("Test Entry")
                     .build());
             return null;
-        }).when(chatService).streamChatFile(any(InputStream.class), any(Consumer.class));
+        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any());
 
         // 1. Perform the request and check async started
         var mvcResult = mockMvc.perform(multipart("/api/chat/upload").file(file))
@@ -109,7 +109,7 @@ class ChatControllerTest {
                     .payload("Test Entry")
                     .build());
             return null;
-        }).when(chatService).streamChatFile(any(InputStream.class), any(Consumer.class));
+        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any());
 
         // 1. Perform the request and check async started
         MockMvc mockMvcUtf8 = createMockMvcWithUtf8();
@@ -165,7 +165,7 @@ class ChatControllerTest {
                     .payload("Test Entry from Zip")
                     .build());
             return List.of("/path/to/extracted/file1.jpg", "/path/to/extracted/file2.mp4");
-        }).when(chatService).processZipFile(any(InputStream.class), any(Consumer.class));
+        }).when(chatService).processZipFile(any(InputStream.class), ArgumentMatchers.any());
 
         var mvcResult = mockMvc.perform(multipart("/api/chat/upload-zip").file(file))
                 .andExpect(request().asyncStarted())
