@@ -35,8 +35,9 @@ public class ChatService {
 
     private Path tempDir;
 
-    public ChatService(@Autowired FileNamingService fileNamingService) {
+    public ChatService(@Autowired FileNamingService fileNamingService, @Autowired AttachmentService attachmentService) {
         this.fileNamingService = fileNamingService;
+        this.attachmentService = attachmentService;
     }
 
     @PostConstruct
@@ -53,6 +54,7 @@ public class ChatService {
     }
 
     private final FileNamingService fileNamingService;
+    private final AttachmentService attachmentService;
 
     public void streamChatFile(InputStream inputStream, Consumer<ChatEntry> entryConsumer) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
@@ -168,6 +170,12 @@ public class ChatService {
                         Path finalPath = fileNamingService.moveToFinalLocationWithHash(tempFile, fileName, contentHash);
                         extractedFiles.add(finalPath.toString());
                         log.info("Extracted multimedia file: {}", finalPath);
+                        
+                        // Save attachment information to database
+                        // For now, using a default client ID - you might want to pass this as a parameter
+                        String clientId = "default-client";
+                        attachmentService.saveAttachmentWithLocation(contentHash, fileName, clientId);
+                        log.debug("Saved attachment info to database for file: {}", fileName);
                     } catch (IOException e) {
                         log.error("Failed to move file {} to final location", fileName, e);
                         // Clean up temp file
