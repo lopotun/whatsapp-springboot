@@ -78,11 +78,12 @@ public class ChatController {
             return ResponseEntity.badRequest()
                     .body(outputStream -> outputStream.write("File is empty".getBytes()));
         }
-        if (file.getOriginalFilename() == null) {
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null) {
             return ResponseEntity.badRequest()
                     .body(outputStream -> outputStream.write("Cannot get chat file name".getBytes()));
         }
-        if (!file.getOriginalFilename().toLowerCase().endsWith(".zip")) {
+        if (!originalFilename.toLowerCase().endsWith(".zip")) {
             return ResponseEntity.badRequest()
                     .body(outputStream -> outputStream.write("Only ZIP files are allowed".getBytes()));
         }

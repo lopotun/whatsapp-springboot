@@ -17,9 +17,12 @@ import java.util.Optional;
 @RequestMapping("/api/attachments")
 public class AttachmentController {
     
-    @Autowired
-    private AttachmentService attachmentService;
-    
+    private final AttachmentService attachmentService;
+
+    public AttachmentController(@Autowired AttachmentService attachmentService) {
+        this.attachmentService = attachmentService;
+    }
+
     /**
      * Get attachment by hash
      */
