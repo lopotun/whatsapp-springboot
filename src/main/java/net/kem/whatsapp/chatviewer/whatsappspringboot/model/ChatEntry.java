@@ -21,6 +21,15 @@ public class ChatEntry {
     private Type type;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private LocalDateTime localDateTime;
+    
+    // Setters for fields that are set during parsing
+    public void setType(Type type) {
+        this.type = type;
+    }
+    
+    public void setLocalDateTime(LocalDateTime localDateTime) {
+        this.localDateTime = localDateTime;
+    }
 
     @Override
     public String toString() {

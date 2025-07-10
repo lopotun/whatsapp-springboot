@@ -23,7 +23,7 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.profiles.active=test")
 class ChatServiceTest {
 
     @Autowired

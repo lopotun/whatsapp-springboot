@@ -28,20 +28,14 @@ public class ChatEntryEnhancer {
 
     @NonNull
     public ChatEntry enhance(@NonNull ChatEntry chatEntry, boolean timestamp, boolean chatType) {
-        ChatEntry.ChatEntryBuilder builder = ChatEntry.builder()
-                .timestamp(chatEntry.getTimestamp())
-                .payload(chatEntry.getPayload())
-                .author(chatEntry.getAuthor())
-                .fileName(chatEntry.getFileName());
-
         if (timestamp) {
-            builder.localDateTime(parseTimestamp(chatEntry.getTimestamp()));
+            chatEntry.setLocalDateTime(parseTimestamp(chatEntry.getTimestamp()));
         }
 
         if (chatType) {
-            builder.type(determineType(chatEntry));
+            chatEntry.setType(determineType(chatEntry));
         }
-        return builder.build();
+        return chatEntry;
     }
 
     private static ChatEntry.Type determineType(ChatEntry chatEntry) {
@@ -72,6 +66,29 @@ public class ChatEntryEnhancer {
     }
 
     private static LocalDateTime parseTimestamp(String timestampString) {
-        return LocalDateTime.parse(timestampString, DATE_TIME_FORMATTER);
+        try {
+            return LocalDateTime.parse(timestampString, DATE_TIME_FORMATTER);
+        } catch (Exception e) {
+            // Try alternative formats if the default format fails
+            DateTimeFormatter[] alternativeFormatters = {
+                DateTimeFormatter.ofPattern("M/d/yy, H:mm"),
+                DateTimeFormatter.ofPattern("M/d/yy, HH:mm"),
+                DateTimeFormatter.ofPattern("MM/dd/yy, HH:mm"),
+                DateTimeFormatter.ofPattern("M/d/yyyy, HH:mm"),
+                DateTimeFormatter.ofPattern("MM/dd/yyyy, HH:mm")
+            };
+            
+            for (DateTimeFormatter formatter : alternativeFormatters) {
+                try {
+                    return LocalDateTime.parse(timestampString, formatter);
+                } catch (Exception ignored) {
+                    // Continue to next formatter
+                }
+            }
+            
+            // If all formats fail, return null or throw a more descriptive exception
+            throw new IllegalArgumentException("Unable to parse timestamp: " + timestampString + 
+                ". Supported formats: M/d/yy, HH:mm, M/d/yy, H:mm, MM/dd/yy, HH:mm, M/d/yyyy, HH:mm, MM/dd/yyyy, HH:mm");
+        }
     }
 }

@@ -15,7 +15,7 @@ import java.util.Comparator;
 import static org.junit.jupiter.api.Assertions.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.profiles.active=test")
 @TestPropertySource(properties = {
     "app.multimedia.storage.path=./test-multimedia-files"
 })

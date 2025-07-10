@@ -2,6 +2,7 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
 import lombok.extern.slf4j.Slf4j;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEnhancer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -35,9 +36,10 @@ public class ChatService {
 
     private Path tempDir;
 
-    public ChatService(@Autowired FileNamingService fileNamingService, @Autowired AttachmentService attachmentService) {
+    public ChatService(@Autowired FileNamingService fileNamingService, @Autowired AttachmentService attachmentService, @Autowired ChatEntryService chatEntryService) {
         this.fileNamingService = fileNamingService;
         this.attachmentService = attachmentService;
+        this.chatEntryService = chatEntryService;
     }
 
     @PostConstruct
@@ -55,6 +57,7 @@ public class ChatService {
 
     private final FileNamingService fileNamingService;
     private final AttachmentService attachmentService;
+    private final ChatEntryService chatEntryService;
 
     public void streamChatFile(InputStream inputStream, Consumer<ChatEntry> entryConsumer) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
@@ -66,6 +69,11 @@ public class ChatService {
                 if (isNewEntry(line)) {
                     if (!currentEntry.isEmpty()) {
                         ChatEntry entry = parseChatEntry(currentEntry.toString());
+                        // Enhance the entry with timestamp and type
+                        ChatEntryEnhancer.enhance(entry, true, true);
+                        // Save to database
+                        chatEntryService.saveChatEntry(entry);
+                        // Stream to consumer
                         entryConsumer.accept(entry);
                         currentEntry.setLength(0);
                     }
@@ -76,6 +84,11 @@ public class ChatService {
             // Don't forget the last entry
             if (!currentEntry.isEmpty()) {
                 ChatEntry entry = parseChatEntry(currentEntry.toString());
+                // Enhance the entry with timestamp and type
+                ChatEntryEnhancer.enhance(entry, true, true);
+                // Save to database
+                chatEntryService.saveChatEntry(entry);
+                // Stream to consumer
                 entryConsumer.accept(entry);
             }
         } catch (IOException e) {
