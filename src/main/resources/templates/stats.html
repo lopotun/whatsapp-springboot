@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Statistics - WhatsApp Chat Viewer</title>
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div th:fragment="content">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="bi bi-graph-up me-2"></i>Chat Statistics & Analytics
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <!-- Overview Stats -->
+                        <div class="row mb-5">
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="totalMessages">0</div>
+                                    <div class="stats-label">Total Messages</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="totalParticipants">0</div>
+                                    <div class="stats-label">Participants</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="totalAttachments">0</div>
+                                    <div class="stats-label">Attachments</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="dateRange">-</div>
+                                    <div class="stats-label">Date Range</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Loading -->
+                        <div id="loadingStats" class="loading">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading statistics...</p>
+                        </div>
+
+                        <!-- Charts Section -->
+                        <div id="chartsSection" style="display: none;">
+                            <!-- Message Types Chart -->
+                            <div class="row mb-5">
+                                <div class="col-md-6 mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Message Types Distribution</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="messageTypesChart" width="400" height="300"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Top Participants</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="participantsChart" width="400" height="300"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Activity Over Time -->
+                            <div class="row mb-5">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Message Activity Over Time</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="activityChart" width="800" height="400"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Detailed Statistics -->
+                            <div class="row">
+                                <div class="col-md-6 mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Message Type Breakdown</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="typeBreakdown"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Participant Activity</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="participantBreakdown"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Attachment Statistics -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Attachment Statistics</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <canvas id="attachmentTypesChart" width="400" height="300"></canvas>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div id="attachmentStats"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:fragment="scripts">
+        <script>
+            let charts = {};
+
+            document.addEventListener('DOMContentLoaded', function() {
+                loadStatistics();
+            });
+
+            function loadStatistics() {
+                Utils.showLoading('loadingStats');
+                document.getElementById('chartsSection').style.display = 'none';
+                
+                // Load all statistics in parallel
+                Promise.all([
+                    loadOverviewStats(),
+                    loadMessageTypeStats(),
+                    loadParticipantStats(),
+                    loadActivityStats(),
+                    loadAttachmentStats()
+                ])
+                .then(() => {
+                    Utils.hideLoading('loadingStats');
+                    document.getElementById('chartsSection').style.display = 'block';
+                })
+                .catch(error => {
+                    Utils.hideLoading('loadingStats');
+                    Utils.showAlert('Failed to load statistics: ' + error.message, 'danger');
+                });
+            }
+
+            function loadOverviewStats() {
+                return fetch('/api/chat-entries')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('totalMessages').textContent = data.totalElements;
+                        
+                        // Calculate unique participants
+                        const participants = new Set();
+                        data.content.forEach(entry => participants.add(entry.author));
+                        document.getElementById('totalParticipants').textContent = participants.size;
+                        
+                        // Calculate date range
+                        if (data.content.length > 0) {
+                            const dates = data.content.map(entry => new Date(entry.timestamp)).sort();
+                            const startDate = dates[0];
+                            const endDate = dates[dates.length - 1];
+                            const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+                            document.getElementById('dateRange').textContent = `${daysDiff} days`;
+                        }
+                        
+                        return data;
+                    });
+            }
+
+            function loadMessageTypeStats() {
+                return Promise.all([
+                    fetch('/api/chat-entries/stats/type/TEXT').then(r => r.json()),
+                    fetch('/api/chat-entries/stats/type/IMAGE').then(r => r.json()),
+                    fetch('/api/chat-entries/stats/type/VIDEO').then(r => r.json()),
+                    fetch('/api/chat-entries/stats/type/AUDIO').then(r => r.json()),
+                    fetch('/api/chat-entries/stats/type/DOCUMENT').then(r => r.json())
+                ])
+                .then(([text, image, video, audio, document]) => {
+                    const data = {
+                        labels: ['Text', 'Image', 'Video', 'Audio', 'Document'],
+                        datasets: [{
+                            data: [text, image, video, audio, document],
+                            backgroundColor: [
+                                '#25D366',
+                                '#FFE0B2',
+                                '#E1F5FE',
+                                '#F3E5F5',
+                                '#E8F5E8'
+                            ],
+                            borderColor: [
+                                '#128C7E',
+                                '#E65100',
+                                '#0277BD',
+                                '#7B1FA2',
+                                '#2E7D32'
+                            ],
+                            borderWidth: 2
+                        }]
+                    };
+                    
+                    createPieChart('messageTypesChart', data, 'Message Types Distribution');
+                    
+                    // Update breakdown
+                    const breakdown = document.getElementById('typeBreakdown');
+                    let html = '<div class="list-group">';
+                    const types = [
+                        { name: 'Text', count: text, color: '#25D366' },
+                        { name: 'Image', count: image, color: '#FFE0B2' },
+                        { name: 'Video', count: video, color: '#E1F5FE' },
+                        { name: 'Audio', count: audio, color: '#F3E5F5' },
+                        { name: 'Document', count: document, color: '#E8F5E8' }
+                    ];
+                    
+                    types.forEach(type => {
+                        html += `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge" style="background-color: ${type.color}; color: #333;">${type.name}</span>
+                                </div>
+                                <span class="badge bg-primary rounded-pill">${type.count}</span>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    breakdown.innerHTML = html;
+                });
+            }
+
+            function loadParticipantStats() {
+                return fetch('/api/chat-entries?size=1000')
+                    .then(response => response.json())
+                    .then(data => {
+                        const participantCounts = {};
+                        data.content.forEach(entry => {
+                            participantCounts[entry.author] = (participantCounts[entry.author] || 0) + 1;
+                        });
+                        
+                        const sortedParticipants = Object.entries(participantCounts)
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 10);
+                        
+                        const chartData = {
+                            labels: sortedParticipants.map(([name]) => name),
+                            datasets: [{
+                                label: 'Messages',
+                                data: sortedParticipants.map(([,count]) => count),
+                                backgroundColor: 'rgba(37, 211, 102, 0.8)',
+                                borderColor: 'rgba(18, 140, 126, 1)',
+                                borderWidth: 2
+                            }]
+                        };
+                        
+                        createBarChart('participantsChart', chartData, 'Top Participants by Message Count');
+                        
+                        // Update breakdown
+                        const breakdown = document.getElementById('participantBreakdown');
+                        let html = '<div class="list-group">';
+                        sortedParticipants.forEach(([name, count], index) => {
+                            html += `
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-secondary me-2">#${index + 1}</span>
+                                        ${name}
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">${count}</span>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                        breakdown.innerHTML = html;
+                    });
+            }
+
+            function loadActivityStats() {
+                return fetch('/api/chat-entries?size=1000')
+                    .then(response => response.json())
+                    .then(data => {
+                        // Group by date
+                        const dailyCounts = {};
+                        data.content.forEach(entry => {
+                            const date = new Date(entry.timestamp).toDateString();
+                            dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+                        });
+                        
+                        const sortedDates = Object.keys(dailyCounts).sort();
+                        const chartData = {
+                            labels: sortedDates.map(date => new Date(date).toLocaleDateString()),
+                            datasets: [{
+                                label: 'Messages per Day',
+                                data: sortedDates.map(date => dailyCounts[date]),
+                                backgroundColor: 'rgba(37, 211, 102, 0.2)',
+                                borderColor: 'rgba(37, 211, 102, 1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4
+                            }]
+                        };
+                        
+                        createLineChart('activityChart', chartData, 'Message Activity Over Time');
+                    });
+            }
+
+            function loadAttachmentStats() {
+                return fetch('/api/attachments/status/0')
+                    .then(response => response.json())
+                    .then(attachments => {
+                        document.getElementById('totalAttachments').textContent = attachments.length;
+                        
+                        // Count by file extension
+                        const extensionCounts = {};
+                        attachments.forEach(att => {
+                            // Try to get extension from locations
+                            fetch(`/api/attachments/locations/client/${att.hash}`)
+                                .then(response => response.json())
+                                .then(locations => {
+                                    if (locations.length > 0) {
+                                        const filename = locations[0].realFileName;
+                                        const extension = filename.split('.').pop().toLowerCase();
+                                        extensionCounts[extension] = (extensionCounts[extension] || 0) + 1;
+                                    }
+                                })
+                                .catch(() => {
+                                    // If no locations, count as unknown
+                                    extensionCounts['unknown'] = (extensionCounts['unknown'] || 0) + 1;
+                                });
+                        });
+                        
+                        // Create attachment types chart
+                        setTimeout(() => {
+                            const chartData = {
+                                labels: Object.keys(extensionCounts),
+                                datasets: [{
+                                    data: Object.values(extensionCounts),
+                                    backgroundColor: [
+                                        '#FF6384',
+                                        '#36A2EB',
+                                        '#FFCE56',
+                                        '#4BC0C0',
+                                        '#9966FF',
+                                        '#FF9F40'
+                                    ]
+                                }]
+                            };
+                            
+                            createDoughnutChart('attachmentTypesChart', chartData, 'Attachment Types');
+                            
+                            // Update attachment stats
+                            const statsDiv = document.getElementById('attachmentStats');
+                            let html = '<div class="list-group">';
+                            Object.entries(extensionCounts).forEach(([ext, count]) => {
+                                html += `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-file-earmark me-2"></i>
+                                            ${ext.toUpperCase()} files
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill">${count}</span>
+                                    </div>
+                                `;
+                            });
+                            html += '</div>';
+                            statsDiv.innerHTML = html;
+                        }, 1000);
+                    });
+            }
+
+            function createPieChart(canvasId, data, title) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (charts[canvasId]) {
+                    charts[canvasId].destroy();
+                }
+                
+                charts[canvasId] = new Chart(ctx, {
+                    type: 'pie',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            },
+                            title: {
+                                display: true,
+                                text: title
+                            }
+                        }
+                    }
+                });
+            }
+
+            function createBarChart(canvasId, data, title) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (charts[canvasId]) {
+                    charts[canvasId].destroy();
+                }
+                
+                charts[canvasId] = new Chart(ctx, {
+                    type: 'bar',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: title
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            function createLineChart(canvasId, data, title) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (charts[canvasId]) {
+                    charts[canvasId].destroy();
+                }
+                
+                charts[canvasId] = new Chart(ctx, {
+                    type: 'line',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: title
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            function createDoughnutChart(canvasId, data, title) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (charts[canvasId]) {
+                    charts[canvasId].destroy();
+                }
+                
+                charts[canvasId] = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            },
+                            title: {
+                                display: true,
+                                text: title
+                            }
+                        }
+                    }
+                });
+            }
+        </script>
+    </div>
+</body>
+</html> 

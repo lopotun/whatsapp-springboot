@@ -22,6 +22,7 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = "spring.profiles.active=test")
 class ChatServiceTest {
@@ -106,7 +107,7 @@ class ChatServiceTest {
     }
 
 
-    @Disabled
+    // @Disabled
     @Test
     void shouldParseMultipleMessagesFromFile() {
         try(InputStream is = new FileInputStream("src/test/resources/WhatsAppChat.txt")) {
@@ -148,10 +149,310 @@ class ChatServiceTest {
         // Verify that chat entries were processed
         assertThat(processedEntries).isNotEmpty();
         
+        // DEBUG: Print database contents
+        System.out.println("=== DATABASE CONTENTS ===");
+        System.out.println("Processed entries: " + processedEntries.size());
+        processedEntries.forEach(entry -> 
+            System.out.println("Entry: " + entry.getAuthor() + " - " + entry.getPayload()));
+        System.out.println("Extracted files: " + extractedFiles.size());
+        extractedFiles.forEach(file -> System.out.println("File: " + file));
+        System.out.println("========================");
+        
         // Clean up extracted files
         for (String filePath : extractedFiles) {
             Files.deleteIfExists(Paths.get(filePath));
         }
+    }
+
+    @Test
+    void processZipFile_shouldHandleZipWithOnlyTextFile() throws Exception {
+        // Create a zip file with only a text file
+        byte[] zipContent = createZipWithOnlyTextFile();
+        
+        List<ChatEntry> processedEntries = new ArrayList<>();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            List<String> result = chatService.processZipFile(inputStream, entry -> {
+                processedEntries.add(entry);
+            });
+            
+            // Should have no extracted files since there are no media files
+            assertThat(result).isEmpty();
+            
+            // Should have processed chat entries
+            assertThat(processedEntries).hasSize(1);
+            assertThat(processedEntries.get(0).getAuthor()).isEqualTo("Test User");
+            assertThat(processedEntries.get(0).getPayload()).isEqualTo("Hello World");
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleZipWithOnlyMediaFiles() throws Exception {
+        // Create a zip file with only media files
+        byte[] zipContent = createZipWithOnlyMediaFiles();
+        
+        List<ChatEntry> processedEntries = new ArrayList<>();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            List<String> result = chatService.processZipFile(inputStream, entry -> {
+                processedEntries.add(entry);
+            });
+            
+            // Should have extracted media files
+            assertThat(result).hasSize(2);
+            
+            // Should have no processed entries since there's no text file
+            assertThat(processedEntries).isEmpty();
+            
+            // Clean up extracted files
+            for (String filePath : result) {
+                Files.deleteIfExists(Paths.get(filePath));
+            }
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleEmptyZip() throws Exception {
+        // Create an empty zip file
+        byte[] zipContent = createEmptyZip();
+        
+        List<ChatEntry> processedEntries = new ArrayList<>();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            List<String> result = chatService.processZipFile(inputStream, entry -> {
+                processedEntries.add(entry);
+            });
+            
+            // Should have no extracted files
+            assertThat(result).isEmpty();
+            
+            // Should have no processed entries
+            assertThat(processedEntries).isEmpty();
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleZipWithMultipleTextFiles() throws Exception {
+        // Create a zip file with multiple text files
+        byte[] zipContent = createZipWithMultipleTextFiles();
+        
+        List<ChatEntry> processedEntries = new ArrayList<>();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            List<String> result = chatService.processZipFile(inputStream, entry -> {
+                processedEntries.add(entry);
+            });
+            
+            // Should have no extracted files since there are no media files
+            assertThat(result).isEmpty();
+            
+            // Should have processed chat entries from the first text file found
+            assertThat(processedEntries).isNotEmpty();
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleZipWithDirectories() throws Exception {
+        // Create a zip file with directories and files
+        byte[] zipContent = createZipWithDirectories();
+        
+        List<ChatEntry> processedEntries = new ArrayList<>();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            List<String> result = chatService.processZipFile(inputStream, entry -> {
+                processedEntries.add(entry);
+            });
+            
+            // Should have extracted media files (directories should be ignored)
+            assertThat(result).hasSize(1);
+            
+            // Should have processed chat entries
+            assertThat(processedEntries).isNotEmpty();
+            
+            // Clean up extracted files
+            for (String filePath : result) {
+                Files.deleteIfExists(Paths.get(filePath));
+            }
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleInvalidZipFile() throws IOException {
+        // Create invalid zip content that will cause ZipInputStream to fail
+        byte[] invalidZipContent = new byte[100];
+        // Fill with random data that's not a valid ZIP structure
+        for (int i = 0; i < invalidZipContent.length; i++) {
+            invalidZipContent[i] = (byte) (i % 256);
+        }
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(invalidZipContent)) {
+            assertThatThrownBy(() -> {
+                chatService.processZipFile(inputStream, entry -> {});
+            }).isInstanceOf(RuntimeException.class)
+              .hasMessageContaining("Error processing zip file");
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleNullInputStream() {
+        assertThatThrownBy(() -> {
+            chatService.processZipFile(null, entry -> {});
+        }).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void processZipFile_shouldHandleNullConsumer() throws IOException {
+        byte[] zipContent = createTestZipWithChatAndMedia();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            assertThatThrownBy(() -> {
+                chatService.processZipFile(inputStream, null);
+            }).isInstanceOf(NullPointerException.class);
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleConsumerThrowingException() throws IOException {
+        byte[] zipContent = createTestZipWithChatAndMedia();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            assertThatThrownBy(() -> {
+                chatService.processZipFile(inputStream, entry -> {
+                    throw new RuntimeException("Consumer error");
+                });
+            }).isInstanceOf(RuntimeException.class)
+              .hasMessageContaining("Consumer error");
+        }
+    }
+
+    @Test
+    void processZipFile_shouldHandleLargeMediaFiles() throws Exception {
+        // Create a zip file with a large media file
+        byte[] zipContent = createZipWithLargeMediaFile();
+        
+        List<ChatEntry> processedEntries = new ArrayList<>();
+        
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(zipContent)) {
+            List<String> result = chatService.processZipFile(inputStream, entry -> {
+                processedEntries.add(entry);
+            });
+            
+            // Should have extracted the large media file
+            assertThat(result).hasSize(1);
+            
+            // Should have processed chat entries
+            assertThat(processedEntries).isNotEmpty();
+            
+            // Clean up extracted files
+            for (String filePath : result) {
+                Files.deleteIfExists(Paths.get(filePath));
+            }
+        }
+    }
+    
+    private byte[] createZipWithOnlyTextFile() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            ZipEntry chatEntry = new ZipEntry("chat.txt");
+            zos.putNextEntry(chatEntry);
+            String chatContent = "6/21/24, 7:19 - Test User: Hello World\n";
+            zos.write(chatContent.getBytes());
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
+    }
+    
+    private byte[] createZipWithOnlyMediaFiles() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // Add image file
+            ZipEntry imageEntry = new ZipEntry("image1.jpg");
+            zos.putNextEntry(imageEntry);
+            zos.write("fake image content 1".getBytes());
+            zos.closeEntry();
+            
+            // Add video file
+            ZipEntry videoEntry = new ZipEntry("video1.mp4");
+            zos.putNextEntry(videoEntry);
+            zos.write("fake video content".getBytes());
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
+    }
+    
+    private byte[] createEmptyZip() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // Empty zip file
+        }
+        return baos.toByteArray();
+    }
+    
+    private byte[] createZipWithMultipleTextFiles() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // First text file
+            ZipEntry chatEntry1 = new ZipEntry("chat1.txt");
+            zos.putNextEntry(chatEntry1);
+            String chatContent1 = "6/21/24, 7:19 - User1: Hello from file 1\n";
+            zos.write(chatContent1.getBytes());
+            zos.closeEntry();
+            
+            // Second text file
+            ZipEntry chatEntry2 = new ZipEntry("chat2.txt");
+            zos.putNextEntry(chatEntry2);
+            String chatContent2 = "6/21/24, 7:20 - User2: Hello from file 2\n";
+            zos.write(chatContent2.getBytes());
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
+    }
+    
+    private byte[] createZipWithDirectories() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // Add a directory entry
+            ZipEntry dirEntry = new ZipEntry("images/");
+            zos.putNextEntry(dirEntry);
+            zos.closeEntry();
+            
+            // Add a file in the directory
+            ZipEntry imageEntry = new ZipEntry("images/test.jpg");
+            zos.putNextEntry(imageEntry);
+            zos.write("fake image content".getBytes());
+            zos.closeEntry();
+            
+            // Add a text file
+            ZipEntry chatEntry = new ZipEntry("chat.txt");
+            zos.putNextEntry(chatEntry);
+            String chatContent = "6/21/24, 7:19 - Test User: Hello World\n";
+            zos.write(chatContent.getBytes());
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
+    }
+    
+    private byte[] createZipWithLargeMediaFile() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // Add a large media file (1MB of data)
+            ZipEntry largeEntry = new ZipEntry("large-video.mp4");
+            zos.putNextEntry(largeEntry);
+            byte[] largeContent = new byte[1024 * 1024]; // 1MB
+            for (int i = 0; i < largeContent.length; i++) {
+                largeContent[i] = (byte) (i % 256);
+            }
+            zos.write(largeContent);
+            zos.closeEntry();
+            
+            // Add a text file
+            ZipEntry chatEntry = new ZipEntry("chat.txt");
+            zos.putNextEntry(chatEntry);
+            String chatContent = "6/21/24, 7:19 - Test User: Hello World\n";
+            zos.write(chatContent.getBytes());
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
     }
     
     private byte[] createTestZipWithChatAndMedia() throws IOException {

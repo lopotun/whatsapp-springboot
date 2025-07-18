@@ -25,21 +25,17 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
     List<ChatEntryEntity> findByAuthorAndLocalDateTimeBetween(String author, LocalDateTime start, LocalDateTime end);
     List<ChatEntryEntity> findByTypeAndLocalDateTimeBetween(ChatEntry.Type type, LocalDateTime start, LocalDateTime end);
     
-    // Complex search with all criteria
+    // Complex search with all criteria (without hasAttachment for now)
     @Query("SELECT ce FROM ChatEntryEntity ce WHERE " +
            "(:author IS NULL OR ce.author = :author) AND " +
            "(:type IS NULL OR ce.type = :type) AND " +
            "(:startDate IS NULL OR ce.localDateTime >= :startDate) AND " +
-           "(:endDate IS NULL OR ce.localDateTime <= :endDate) AND " +
-           "(:hasAttachment IS NULL OR " +
-           "(:hasAttachment = true AND ce.attachmentHash IS NOT NULL) OR " +
-           "(:hasAttachment = false AND ce.attachmentHash IS NULL))")
+           "(:endDate IS NULL OR ce.localDateTime <= :endDate)")
     Page<ChatEntryEntity> searchChatEntries(
             @Param("author") String author,
             @Param("type") ChatEntry.Type type,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
-            @Param("hasAttachment") Boolean hasAttachment,
             Pageable pageable);
     
     // Full-text search in payload

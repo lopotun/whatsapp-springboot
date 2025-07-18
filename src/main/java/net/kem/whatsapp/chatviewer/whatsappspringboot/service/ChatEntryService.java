@@ -71,7 +71,29 @@ public class ChatEntryService {
             int size) {
         
         Pageable pageable = PageRequest.of(page, size);
-        return chatEntryRepository.searchChatEntries(author, type, startDate, endDate, hasAttachment, pageable);
+        Page<ChatEntryEntity> results = chatEntryRepository.searchChatEntries(author, type, startDate, endDate, pageable);
+        
+        // Filter by hasAttachment if specified
+        if (hasAttachment != null) {
+            List<ChatEntryEntity> filteredContent = results.getContent().stream()
+                    .filter(entry -> {
+                        if (hasAttachment) {
+                            return entry.getAttachmentHash() != null && !entry.getAttachmentHash().isEmpty();
+                        } else {
+                            return entry.getAttachmentHash() == null || entry.getAttachmentHash().isEmpty();
+                        }
+                    })
+                    .collect(Collectors.toList());
+            
+            // Create a new page with filtered content
+            return new org.springframework.data.domain.PageImpl<>(
+                    filteredContent, 
+                    pageable, 
+                    results.getTotalElements()
+            );
+        }
+        
+        return results;
     }
     
     /**

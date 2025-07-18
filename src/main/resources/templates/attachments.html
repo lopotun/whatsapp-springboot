@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Attachments - WhatsApp Chat Viewer</title>
+</head>
+<body>
+    <div th:fragment="content">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="bi bi-paperclip me-2"></i>Manage Attachments
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <!-- Search and Filter -->
+                        <div class="row mb-4">
+                            <div class="col-md-4 mb-3">
+                                <label for="searchHash" class="form-label">Search by Hash</label>
+                                <input type="text" class="form-control" id="searchHash" 
+                                       placeholder="Enter file hash...">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="filterStatus" class="form-label">Status Filter</label>
+                                <select class="form-select" id="filterStatus">
+                                    <option value="">All Statuses</option>
+                                    <option value="0">Active</option>
+                                    <option value="1">Inactive</option>
+                                    <option value="2">Deleted</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="filterClient" class="form-label">Client Filter</label>
+                                <input type="text" class="form-control" id="filterClient" 
+                                       placeholder="Enter client ID...">
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2 mb-4">
+                            <button class="btn btn-primary" onclick="searchAttachments()">
+                                <i class="bi bi-search me-2"></i>Search
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                                <i class="bi bi-x-circle me-2"></i>Clear
+                            </button>
+                            <button class="btn btn-outline-info" onclick="loadAllAttachments()">
+                                <i class="bi bi-list-ul me-2"></i>Show All
+                            </button>
+                        </div>
+
+                        <!-- Statistics Cards -->
+                        <div class="row mb-4" id="statsSection" style="display: none;">
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="totalAttachments">0</div>
+                                    <div class="stats-label">Total Attachments</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="activeAttachments">0</div>
+                                    <div class="stats-label">Active</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="totalLocations">0</div>
+                                    <div class="stats-label">File Locations</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="uniqueClients">0</div>
+                                    <div class="stats-label">Unique Clients</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Loading -->
+                        <div id="loadingAttachments" class="loading">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading attachments...</p>
+                        </div>
+
+                        <!-- Attachments Table -->
+                        <div id="attachmentsSection" style="display: none;">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">Attachments</h5>
+                                    <span class="badge bg-primary" id="attachmentCount">0 attachments</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Hash</th>
+                                                    <th>Status</th>
+                                                    <th>Last Added</th>
+                                                    <th>Locations</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="attachmentsTableBody">
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Locations Table -->
+                        <div id="locationsSection" style="display: none;">
+                            <div class="card mt-4">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">File Locations</h5>
+                                    <span class="badge bg-primary" id="locationCount">0 locations</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Real Filename</th>
+                                                    <th>Client ID</th>
+                                                    <th>Status</th>
+                                                    <th>Last Added</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="locationsTableBody">
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attachment Details Modal -->
+        <div class="modal fade" id="attachmentModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Attachment Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" id="attachmentModalBody">
+                        <!-- Content will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:fragment="scripts">
+        <script>
+            let currentAttachments = [];
+            let currentLocations = [];
+
+            document.addEventListener('DOMContentLoaded', function() {
+                // Load initial data
+                loadAllAttachments();
+            });
+
+            function loadAllAttachments() {
+                Utils.showLoading('loadingAttachments');
+                hideResults();
+                
+                // Load attachments
+                fetch('/api/attachments/status/0') // Active attachments
+                    .then(response => response.json())
+                    .then(attachments => {
+                        currentAttachments = attachments;
+                        displayAttachments(attachments);
+                        
+                        // Load locations for these attachments
+                        return Promise.all(attachments.map(att => 
+                            fetch(`/api/attachments/locations/client/${att.hash}`)
+                                .then(response => response.json())
+                                .catch(() => [])
+                        ));
+                    })
+                    .then(locationArrays => {
+                        currentLocations = locationArrays.flat();
+                        displayLocations(currentLocations);
+                        updateStatistics();
+                        Utils.hideLoading('loadingAttachments');
+                        showResults();
+                    })
+                    .catch(error => {
+                        Utils.hideLoading('loadingAttachments');
+                        Utils.showAlert('Failed to load attachments: ' + error.message, 'danger');
+                    });
+            }
+
+            function searchAttachments() {
+                const hash = document.getElementById('searchHash').value.trim();
+                const status = document.getElementById('filterStatus').value;
+                const client = document.getElementById('filterClient').value.trim();
+                
+                if (!hash && !status && !client) {
+                    loadAllAttachments();
+                    return;
+                }
+                
+                Utils.showLoading('loadingAttachments');
+                hideResults();
+                
+                let promises = [];
+                
+                // Search by hash
+                if (hash) {
+                    promises.push(
+                        fetch(`/api/attachments/hash/${hash}`)
+                            .then(response => response.ok ? response.json() : null)
+                            .then(att => att ? [att] : [])
+                    );
+                }
+                
+                // Search by status
+                if (status) {
+                    promises.push(
+                        fetch(`/api/attachments/status/${status}`)
+                            .then(response => response.json())
+                    );
+                }
+                
+                // Search by client
+                if (client) {
+                    promises.push(
+                        fetch(`/api/attachments/locations/client/${client}`)
+                            .then(response => response.json())
+                            .then(locations => {
+                                // Get unique attachment hashes from locations
+                                const hashes = [...new Set(locations.map(loc => loc.attachmentHash))];
+                                return Promise.all(hashes.map(hash => 
+                                    fetch(`/api/attachments/hash/${hash}`)
+                                        .then(response => response.ok ? response.json() : null)
+                                ));
+                            })
+                            .then(attachments => attachments.filter(att => att !== null))
+                    );
+                }
+                
+                Promise.all(promises)
+                    .then(results => {
+                        const allAttachments = [...new Set(results.flat().map(att => att.hash))];
+                        const filteredAttachments = results.flat().filter(att => 
+                            allAttachments.includes(att.hash)
+                        );
+                        
+                        currentAttachments = filteredAttachments;
+                        displayAttachments(filteredAttachments);
+                        
+                        // Load locations for filtered attachments
+                        return Promise.all(filteredAttachments.map(att => 
+                            fetch(`/api/attachments/locations/client/${att.hash}`)
+                                .then(response => response.json())
+                                .catch(() => [])
+                        ));
+                    })
+                    .then(locationArrays => {
+                        currentLocations = locationArrays.flat();
+                        displayLocations(currentLocations);
+                        updateStatistics();
+                        Utils.hideLoading('loadingAttachments');
+                        showResults();
+                    })
+                    .catch(error => {
+                        Utils.hideLoading('loadingAttachments');
+                        Utils.showAlert('Search failed: ' + error.message, 'danger');
+                    });
+            }
+
+            function displayAttachments(attachments) {
+                const tbody = document.getElementById('attachmentsTableBody');
+                const countElement = document.getElementById('attachmentCount');
+                
+                countElement.textContent = `${attachments.length} attachments`;
+                
+                if (attachments.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <i class="bi bi-inbox display-4 text-muted mb-3"></i>
+                                <p class="text-muted">No attachments found</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                attachments.forEach(att => {
+                    const statusBadge = getStatusBadge(att.status);
+                    const locationCount = currentLocations.filter(loc => loc.attachmentHash === att.hash).length;
+                    
+                    html += `
+                        <tr>
+                            <td>
+                                <code class="small">${att.hash.substring(0, 16)}...</code>
+                                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard('${att.hash}')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </td>
+                            <td>${statusBadge}</td>
+                            <td>${Utils.formatDate(att.lastAdded)}</td>
+                            <td>
+                                <span class="badge bg-info">${locationCount}</span>
+                                ${locationCount > 0 ? ' locations' : ' location'}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewAttachmentDetails('${att.hash}')">
+                                    <i class="bi bi-eye"></i> View
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="updateAttachmentStatus('${att.hash}', 1)">
+                                    <i class="bi bi-pause"></i> Deactivate
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html;
+            }
+
+            function displayLocations(locations) {
+                const tbody = document.getElementById('locationsTableBody');
+                const countElement = document.getElementById('locationCount');
+                
+                countElement.textContent = `${locations.length} locations`;
+                
+                if (locations.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <i class="bi bi-folder display-4 text-muted mb-3"></i>
+                                <p class="text-muted">No file locations found</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                locations.forEach(loc => {
+                    const statusBadge = getStatusBadge(loc.status);
+                    
+                    html += `
+                        <tr>
+                            <td>
+                                <i class="bi bi-file-earmark me-2"></i>
+                                ${loc.realFileName}
+                            </td>
+                            <td>
+                                <code class="small">${loc.clientId}</code>
+                            </td>
+                            <td>${statusBadge}</td>
+                            <td>${Utils.formatDate(loc.lastAdded)}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-warning" onclick="updateLocationStatus(${loc.id}, 1)">
+                                    <i class="bi bi-pause"></i> Deactivate
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html;
+            }
+
+            function updateStatistics() {
+                const totalAttachments = currentAttachments.length;
+                const activeAttachments = currentAttachments.filter(att => att.status === 0).length;
+                const totalLocations = currentLocations.length;
+                const uniqueClients = new Set(currentLocations.map(loc => loc.clientId)).size;
+                
+                document.getElementById('totalAttachments').textContent = totalAttachments;
+                document.getElementById('activeAttachments').textContent = activeAttachments;
+                document.getElementById('totalLocations').textContent = totalLocations;
+                document.getElementById('uniqueClients').textContent = uniqueClients;
+            }
+
+            function getStatusBadge(status) {
+                const statusMap = {
+                    0: { text: 'Active', class: 'bg-success' },
+                    1: { text: 'Inactive', class: 'bg-warning' },
+                    2: { text: 'Deleted', class: 'bg-danger' }
+                };
+                
+                const statusInfo = statusMap[status] || { text: 'Unknown', class: 'bg-secondary' };
+                return `<span class="badge ${statusInfo.class}">${statusInfo.text}</span>`;
+            }
+
+            function viewAttachmentDetails(hash) {
+                const modal = new bootstrap.Modal(document.getElementById('attachmentModal'));
+                const modalBody = document.getElementById('attachmentModalBody');
+                
+                modalBody.innerHTML = `
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading attachment details...</p>
+                    </div>
+                `;
+                
+                modal.show();
+                
+                // Load attachment details
+                fetch(`/api/attachments/hash/${hash}`)
+                    .then(response => response.json())
+                    .then(attachment => {
+                        const locations = currentLocations.filter(loc => loc.attachmentHash === hash);
+                        
+                        let html = `
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Attachment Information</h6>
+                                    <table class="table table-sm">
+                                        <tr><td><strong>Hash:</strong></td><td><code>${attachment.hash}</code></td></tr>
+                                        <tr><td><strong>Status:</strong></td><td>${getStatusBadge(attachment.status)}</td></tr>
+                                        <tr><td><strong>Last Added:</strong></td><td>${Utils.formatDate(attachment.lastAdded)}</td></tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>File Locations (${locations.length})</h6>
+                                    ${locations.length > 0 ? `
+                                        <div class="list-group">
+                                            ${locations.map(loc => `
+                                                <div class="list-group-item">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <strong>${loc.realFileName}</strong><br>
+                                                            <small class="text-muted">Client: ${loc.clientId}</small>
+                                                        </div>
+                                                        <div>
+                                                            ${getStatusBadge(loc.status)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    ` : '<p class="text-muted">No file locations found</p>'}
+                                </div>
+                            </div>
+                        `;
+                        
+                        modalBody.innerHTML = html;
+                    })
+                    .catch(error => {
+                        modalBody.innerHTML = `
+                            <div class="alert alert-danger">
+                                Failed to load attachment details: ${error.message}
+                            </div>
+                        `;
+                    });
+            }
+
+            function updateAttachmentStatus(hash, status) {
+                fetch(`/api/attachments/hash/${hash}/status/${status}`, { method: 'PUT' })
+                    .then(response => {
+                        if (response.ok) {
+                            Utils.showAlert('Attachment status updated successfully', 'success');
+                            loadAllAttachments(); // Refresh the list
+                        } else {
+                            throw new Error('Failed to update status');
+                        }
+                    })
+                    .catch(error => {
+                        Utils.showAlert('Failed to update attachment status: ' + error.message, 'danger');
+                    });
+            }
+
+            function updateLocationStatus(locationId, status) {
+                fetch(`/api/attachments/locations/${locationId}/status/${status}`, { method: 'PUT' })
+                    .then(response => {
+                        if (response.ok) {
+                            Utils.showAlert('Location status updated successfully', 'success');
+                            loadAllAttachments(); // Refresh the list
+                        } else {
+                            throw new Error('Failed to update status');
+                        }
+                    })
+                    .catch(error => {
+                        Utils.showAlert('Failed to update location status: ' + error.message, 'danger');
+                    });
+            }
+
+            function clearFilters() {
+                document.getElementById('searchHash').value = '';
+                document.getElementById('filterStatus').value = '';
+                document.getElementById('filterClient').value = '';
+                loadAllAttachments();
+            }
+
+            function showResults() {
+                document.getElementById('statsSection').style.display = 'block';
+                document.getElementById('attachmentsSection').style.display = 'block';
+                document.getElementById('locationsSection').style.display = 'block';
+            }
+
+            function hideResults() {
+                document.getElementById('statsSection').style.display = 'none';
+                document.getElementById('attachmentsSection').style.display = 'none';
+                document.getElementById('locationsSection').style.display = 'none';
+            }
+
+            function copyToClipboard(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    Utils.showAlert('Hash copied to clipboard!', 'success');
+                }).catch(() => {
+                    Utils.showAlert('Failed to copy hash', 'warning');
+                });
+            }
+        </script>
+    </div>
+</body>
+</html> 

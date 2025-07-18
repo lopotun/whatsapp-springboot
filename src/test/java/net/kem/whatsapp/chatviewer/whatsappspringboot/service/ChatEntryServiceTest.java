@@ -116,7 +116,7 @@ class ChatEntryServiceTest {
         // Given
         Pageable pageable = PageRequest.of(0, 10);
         Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
-        when(chatEntryRepository.searchChatEntries(anyString(), any(), any(), any(), any(), any(Pageable.class)))
+        when(chatEntryRepository.searchChatEntries(anyString(), any(), any(), any(), any(Pageable.class)))
                 .thenReturn(page);
 
         // When
@@ -126,7 +126,7 @@ class ChatEntryServiceTest {
         // Then
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(chatEntryRepository).searchChatEntries(anyString(), any(), any(), any(), any(), any(Pageable.class));
+        verify(chatEntryRepository).searchChatEntries(anyString(), any(), any(), any(), any(Pageable.class));
     }
 
     @Test

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Home - WhatsApp Chat Viewer</title>
+</head>
+<body>
+    <div th:fragment="content">
+        <!-- Hero Section -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <h1 class="display-4 mb-3">
+                            <i class="bi bi-whatsapp text-success me-3"></i>
+                            Welcome to WhatsApp Chat Viewer
+                        </h1>
+                        <p class="lead mb-4">
+                            Upload, search, and analyze your WhatsApp chat exports with powerful search capabilities and multimedia support.
+                        </p>
+                        <div class="d-flex justify-content-center gap-3 flex-wrap">
+                            <a href="/upload" class="btn btn-primary btn-lg">
+                                <i class="bi bi-upload me-2"></i>Upload Chat
+                            </a>
+                            <a href="/search" class="btn btn-outline-primary btn-lg">
+                                <i class="bi bi-search me-2"></i>Search Messages
+                            </a>
+                            <a href="/stats" class="btn btn-outline-primary btn-lg">
+                                <i class="bi bi-graph-up me-2"></i>View Statistics
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="row mb-5" th:if="${stats}">
+            <div class="col-md-3 col-sm-6 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" th:text="${stats.totalEntries}">0</div>
+                    <div class="stats-label">Total Messages</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" th:text="${stats.totalAttachments}">0</div>
+                    <div class="stats-label">Attachments</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" th:text="${stats.uniqueAuthors}">0</div>
+                    <div class="stats-label">Participants</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" th:text="${stats.dateRange}">-</div>
+                    <div class="stats-label">Date Range</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <h2 class="text-center mb-4">Features</h2>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-upload display-4 text-primary mb-3"></i>
+                        <h5 class="card-title">Upload & Process</h5>
+                        <p class="card-text">
+                            Upload WhatsApp chat exports (.txt files) or ZIP archives containing multimedia files and chat data.
+                            Automatic parsing and database storage with content-addressed file management.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-search display-4 text-primary mb-3"></i>
+                        <h5 class="card-title">Advanced Search</h5>
+                        <p class="card-text">
+                            Search messages by keywords, author, message type, date range, and attachment presence.
+                            Full-text search with PostgreSQL for fast and accurate results.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-graph-up display-4 text-primary mb-3"></i>
+                        <h5 class="card-title">Analytics & Statistics</h5>
+                        <p class="card-text">
+                            View comprehensive statistics about your chat data including message counts, participant activity,
+                            and attachment analysis.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="row" th:if="${recentEntries}">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clock-history me-2"></i>Recent Messages
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chat-entry" th:each="entry : ${recentEntries}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <span class="author" th:text="${entry.author}">Author</span>
+                                    <span class="badge" th:classappend="${entry.type.toString().toLowerCase()}" 
+                                          th:text="${entry.type}">Type</span>
+                                </div>
+                                <small class="timestamp" th:text="${#temporals.format(entry.timestamp, 'dd/MM/yyyy HH:mm')}">Timestamp</small>
+                            </div>
+                            <div class="content" th:text="${entry.payload}">Content</div>
+                            <div th:if="${entry.attachmentHash}" class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-paperclip me-1"></i>
+                                    Attachment: <span th:text="${entry.attachmentHash}">Hash</span>
+                                </small>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <a href="/search" class="btn btn-outline-primary">View All Messages</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-lightning me-2"></i>Quick Actions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <a href="/upload" class="btn btn-primary w-100">
+                                    <i class="bi bi-upload me-2"></i>Upload New Chat
+                                </a>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <a href="/search" class="btn btn-outline-primary w-100">
+                                    <i class="bi bi-search me-2"></i>Search Messages
+                                </a>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <a href="/attachments" class="btn btn-outline-primary w-100">
+                                    <i class="bi bi-paperclip me-2"></i>Manage Attachments
+                                </a>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <a href="/stats" class="btn btn-outline-primary w-100">
+                                    <i class="bi bi-graph-up me-2"></i>View Statistics
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:fragment="scripts">
+        <!-- No additional scripts needed for home page -->
+    </div>
+</body>
+</html> 

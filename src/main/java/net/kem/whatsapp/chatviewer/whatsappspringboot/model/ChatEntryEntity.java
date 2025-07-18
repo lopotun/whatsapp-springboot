@@ -35,7 +35,7 @@ public class ChatEntryEntity {
     @Column(name = "payload", columnDefinition = "TEXT")
     private String payload;
     
-    @Column(name = "author", nullable = false)
+    @Column(name = "author", nullable = false, columnDefinition = "VARCHAR(255) DEFAULT 'Unknown'")
     private String author;
     
     @Column(name = "file_name")
@@ -58,6 +58,13 @@ public class ChatEntryEntity {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    
+    @PrePersist
+    protected void onCreate() {
+        if (author == null || author.trim().isEmpty()) {
+            author = "Unknown";
+        }
+    }
     
     // Convert from ChatEntry model to entity
     public static ChatEntryEntity fromChatEntry(ChatEntry chatEntry) {
