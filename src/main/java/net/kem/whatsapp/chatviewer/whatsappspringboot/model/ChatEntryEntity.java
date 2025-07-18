@@ -75,12 +75,13 @@ public class ChatEntryEntity {
                 .fileName(chatEntry.getFileName())
                 .type(chatEntry.getType())
                 .localDateTime(chatEntry.getLocalDateTime())
+                .attachmentHash(chatEntry.getAttachmentHash())
                 .build();
     }
     
     // Convert entity back to ChatEntry model
     public ChatEntry toChatEntry() {
-        return ChatEntry.builder()
+        ChatEntry chatEntry = ChatEntry.builder()
                 .timestamp(timestamp)
                 .payload(payload)
                 .author(author)
@@ -88,5 +89,7 @@ public class ChatEntryEntity {
                 .type(type)
                 .localDateTime(localDateTime)
                 .build();
+        chatEntry.setAttachmentHash(attachmentHash);
+        return chatEntry;
     }
 } 

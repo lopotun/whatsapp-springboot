@@ -16,7 +16,9 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,7 +61,7 @@ public class ChatService {
     private final AttachmentService attachmentService;
     private final ChatEntryService chatEntryService;
 
-    public void streamChatFile(InputStream inputStream, Consumer<ChatEntry> entryConsumer) {
+    public void streamChatFile(InputStream inputStream, Consumer<ChatEntry> entryConsumer, Map<String, String> filenameToHashMap) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         StringBuilder currentEntry = new StringBuilder();
         String line;
@@ -71,6 +73,8 @@ public class ChatService {
                         ChatEntry entry = parseChatEntry(currentEntry.toString());
                         // Enhance the entry with timestamp and type
                         ChatEntryEnhancer.enhance(entry, true, true);
+                        // Link attachment hash if filename exists in the mapping
+                        linkAttachmentHash(entry, filenameToHashMap);
                         // Save to database
                         chatEntryService.saveChatEntry(entry);
                         // Stream to consumer
@@ -86,6 +90,8 @@ public class ChatService {
                 ChatEntry entry = parseChatEntry(currentEntry.toString());
                 // Enhance the entry with timestamp and type
                 ChatEntryEnhancer.enhance(entry, true, true);
+                // Link attachment hash if filename exists in the mapping
+                linkAttachmentHash(entry, filenameToHashMap);
                 // Save to database
                 chatEntryService.saveChatEntry(entry);
                 // Stream to consumer
@@ -141,6 +147,22 @@ public class ChatService {
 
         return builder.build();
     }
+    
+    /**
+     * Links attachment hash to chat entry if filename exists in the mapping
+     */
+    private void linkAttachmentHash(ChatEntry entry, Map<String, String> filenameToHashMap) {
+        if (entry.getFileName() != null && !entry.getFileName().isEmpty()) {
+            String hash = filenameToHashMap.get(entry.getFileName());
+            if (hash != null) {
+                // Set the attachment hash on the entry
+                entry.setAttachmentHash(hash);
+                log.debug("Linked attachment hash {} to filename: {}", hash, entry.getFileName());
+            } else {
+                log.warn("No hash found for filename: {}", entry.getFileName());
+            }
+        }
+    }
 
     /**
      * Processes a zip file containing multimedia files and a WhatsApp chat text file.
@@ -152,6 +174,7 @@ public class ChatService {
      */
     public List<String> processZipFile(InputStream zipInputStream, Consumer<ChatEntry> entryConsumer) {
         List<String> extractedFiles = new ArrayList<>();
+        Map<String, String> filenameToHashMap = new HashMap<>(); // Thread-local mapping for this processing session
         
         try (ZipInputStream zis = new ZipInputStream(zipInputStream)) {
             ZipEntry entry;
@@ -178,6 +201,9 @@ public class ChatService {
                     String contentHash = copyAndCalculateHash(zis, tempFile);
                     log.debug("Copied file to temp location: {} with hash: {}", tempFile, contentHash);
                     
+                    // Store filename to hash mapping for later linking
+                    filenameToHashMap.put(fileName, contentHash);
+                    
                     // Move to final content-based location using pre-calculated hash
                     try {
                         Path finalPath = fileNamingService.moveToFinalLocationWithHash(tempFile, fileName, contentHash);
@@ -203,9 +229,9 @@ public class ChatService {
                 zis.closeEntry();
             }
             
-            // Process the chat text file if found
+            // Process the chat text file if found, passing the filename-to-hash mapping
             if (chatTextStream != null) {
-                streamChatFile(chatTextStream, entryConsumer);
+                streamChatFile(chatTextStream, entryConsumer, filenameToHashMap);
             } else {
                 log.warn("No text file found in the zip archive");
             }

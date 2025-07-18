@@ -3,6 +3,7 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
@@ -15,21 +16,18 @@ public class ChatEntry {
     protected final String payload;
     protected final String author;
     protected final String fileName;
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String attachmentHash;
 
     public enum Type {TEXT, FILE, DOCUMENT, IMAGE, VIDEO, AUDIO, LOCATION, CONTACT, POLL, STICKER, UNKNOWN}
+    // Setters for fields that are set during parsing
+    @Setter
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Type type;
+    @Setter
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private LocalDateTime localDateTime;
-    
-    // Setters for fields that are set during parsing
-    public void setType(Type type) {
-        this.type = type;
-    }
-    
-    public void setLocalDateTime(LocalDateTime localDateTime) {
-        this.localDateTime = localDateTime;
-    }
 
     @Override
     public String toString() {
@@ -43,6 +41,9 @@ public class ChatEntry {
         }
         if (localDateTime != null) {
             sb.append(", localDateTime=").append(localDateTime);
+        }
+        if (attachmentHash != null) {
+            sb.append(", attachmentHash=").append(attachmentHash);
         }
         sb.append(")");
         return sb.toString();

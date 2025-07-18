@@ -72,7 +72,7 @@ class ChatControllerTest {
                     .payload("Test Entry")
                     .build());
             return null;
-        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any());
+        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any(), ArgumentMatchers.any());
 
         // 1. Perform the request and check async started
         var mvcResult = mockMvc.perform(multipart("/api/chat/upload").file(file))
@@ -109,7 +109,7 @@ class ChatControllerTest {
                     .payload("Test Entry")
                     .build());
             return null;
-        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any());
+        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any(), ArgumentMatchers.any());
 
         // 1. Perform the request and check async started
         MockMvc mockMvcUtf8 = createMockMvcWithUtf8();
