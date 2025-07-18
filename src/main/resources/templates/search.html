@@ -1,415 +1,704 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search - WhatsApp Chat Viewer</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            color: white !important;
+        }
+        
+        .navbar-nav .nav-link {
+            color: rgba(255,255,255,0.9) !important;
+            transition: color 0.3s ease;
+        }
+        
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+        }
+        
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            font-weight: bold;
+        }
+        
+        .main-content {
+            min-height: calc(100vh - 140px);
+            padding: 2rem 0;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 12px 12px 0 0 !important;
+            font-weight: 600;
+        }
+        
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
+            transform: translateY(-1px);
+        }
+        
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #25d366;
+            box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+        
+        .chat-entry {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-entry:hover {
+            border-color: #25d366;
+            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.1);
+        }
+        
+        .chat-entry .author {
+            font-weight: bold;
+            color: #25d366;
+        }
+        
+        .chat-entry .timestamp {
+            color: #6c757d;
+        }
+        
+        .chat-entry .content {
+            margin-top: 0.5rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        
+        .badge.text {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        
+        .badge.image {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .badge.video {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .badge.audio {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge.document {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .pagination .page-link {
+            color: #25d366;
+            border-color: #dee2e6;
+        }
+        
+        .pagination .page-item.active .page-link {
+            background-color: #25d366;
+            border-color: #25d366;
+        }
+        
+        .pagination .page-link:hover {
+            color: #128c7e;
+            background-color: #e9ecef;
+        }
+        
+        .footer {
+            background: #343a40;
+            color: white;
+            text-align: center;
+            padding: 1rem 0;
+            margin-top: 2rem;
+        }
+        
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+        
+        .modal-content {
+            border-radius: 12px;
+            border: none;
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px 12px 0 0;
+        }
+    </style>
 </head>
 <body>
-    <div th:fragment="content">
-        <div class="row">
-            <div class="col-12">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-whatsapp me-2"></i>WhatsApp Chat Viewer
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="bi bi-house me-1"></i>Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/upload">
+                            <i class="bi bi-upload me-1"></i>Upload
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/search">
+                            <i class="bi bi-search me-1"></i>Search
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/attachments">
+                            <i class="bi bi-paperclip me-1"></i>Attachments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/stats">
+                            <i class="bi bi-graph-up me-1"></i>Stats
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <!-- Search Form -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="bi bi-search me-2"></i>Search Chat Messages
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <form id="searchForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="keyword" class="form-label">Keyword Search</label>
+                                        <input type="text" class="form-control" id="keyword" name="keyword" 
+                                               placeholder="Search in message content and author names...">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="author" class="form-label">Author</label>
+                                        <input type="text" class="form-control" id="author" name="author" 
+                                               placeholder="Filter by specific author...">
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="type" class="form-label">Message Type</label>
+                                        <select class="form-select" id="type" name="type">
+                                            <option value="">All Types</option>
+                                            <option value="TEXT">Text</option>
+                                            <option value="IMAGE">Image</option>
+                                            <option value="VIDEO">Video</option>
+                                            <option value="AUDIO">Audio</option>
+                                            <option value="DOCUMENT">Document</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="startDate" class="form-label">Start Date</label>
+                                        <input type="datetime-local" class="form-control" id="startDate" name="startDate">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="endDate" class="form-label">End Date</label>
+                                        <input type="datetime-local" class="form-control" id="endDate" name="endDate">
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="hasAttachment" class="form-label">Attachment Filter</label>
+                                        <select class="form-select" id="hasAttachment" name="hasAttachment">
+                                            <option value="">All Messages</option>
+                                            <option value="true">With Attachments</option>
+                                            <option value="false">Without Attachments</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="pageSize" class="form-label">Results per Page</label>
+                                        <select class="form-select" id="pageSize" name="size">
+                                            <option value="10">10</option>
+                                            <option value="20" selected>20</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-search me-2"></i>Search
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                                        <i class="bi bi-x-circle me-2"></i>Clear
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info" onclick="loadQuickSearches()">
+                                        <i class="bi bi-lightning me-2"></i>Quick Searches
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Searches Modal -->
+            <div class="modal fade" id="quickSearchesModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Quick Searches</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6>Recent Messages</h6>
+                                            <p class="text-muted small">Messages from the last 24 hours</p>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('recent')">
+                                                Apply Search
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6>Media Messages</h6>
+                                            <p class="text-muted small">All messages with attachments</p>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('media')">
+                                                Apply Search
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6>Images Only</h6>
+                                            <p class="text-muted small">Messages containing images</p>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('images')">
+                                                Apply Search
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6>Videos Only</h6>
+                                            <p class="text-muted small">Messages containing videos</p>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('videos')">
+                                                Apply Search
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" style="display: none;">
                 <div class="card">
-                    <div class="card-header">
-                        <h4 class="mb-0">
-                            <i class="bi bi-search me-2"></i>Search Chat Messages
-                        </h4>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ul me-2"></i>Search Results
+                        </h5>
+                        <div>
+                            <span class="badge bg-primary" id="resultCount">0 results</span>
+                        </div>
                     </div>
                     <div class="card-body">
-                        <!-- Search Form -->
-                        <form id="searchForm">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="keyword" class="form-label">Keyword Search</label>
-                                    <input type="text" class="form-control" id="keyword" name="keyword" 
-                                           placeholder="Search in message content and author names...">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="author" class="form-label">Author</label>
-                                    <input type="text" class="form-control" id="author" name="author" 
-                                           placeholder="Filter by specific author...">
-                                </div>
+                        <!-- Loading -->
+                        <div id="loadingResults" class="loading">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
                             </div>
-                            
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label for="type" class="form-label">Message Type</label>
-                                    <select class="form-select" id="type" name="type">
-                                        <option value="">All Types</option>
-                                        <option value="TEXT">Text</option>
-                                        <option value="IMAGE">Image</option>
-                                        <option value="VIDEO">Video</option>
-                                        <option value="AUDIO">Audio</option>
-                                        <option value="DOCUMENT">Document</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="startDate" class="form-label">Start Date</label>
-                                    <input type="datetime-local" class="form-control" id="startDate" name="startDate">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="endDate" class="form-label">End Date</label>
-                                    <input type="datetime-local" class="form-control" id="endDate" name="endDate">
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="hasAttachment" class="form-label">Attachment Filter</label>
-                                    <select class="form-select" id="hasAttachment" name="hasAttachment">
-                                        <option value="">All Messages</option>
-                                        <option value="true">With Attachments</option>
-                                        <option value="false">Without Attachments</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="pageSize" class="form-label">Results per Page</label>
-                                    <select class="form-select" id="pageSize" name="size">
-                                        <option value="10">10</option>
-                                        <option value="20" selected>20</option>
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-search me-2"></i>Search
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
-                                    <i class="bi bi-x-circle me-2"></i>Clear
-                                </button>
-                                <button type="button" class="btn btn-outline-info" onclick="loadQuickSearches()">
-                                    <i class="bi bi-lightning me-2"></i>Quick Searches
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Searches Modal -->
-        <div class="modal fade" id="quickSearchesModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Quick Searches</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6>Recent Messages</h6>
-                                        <p class="text-muted small">Messages from the last 24 hours</p>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('recent')">
-                                            Apply Search
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6>Media Messages</h6>
-                                        <p class="text-muted small">All messages with attachments</p>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('media')">
-                                            Apply Search
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6>Images Only</h6>
-                                        <p class="text-muted small">Messages containing images</p>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('images')">
-                                            Apply Search
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6>Videos Only</h6>
-                                        <p class="text-muted small">Messages containing videos</p>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="applyQuickSearch('videos')">
-                                            Apply Search
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <p class="mt-2">Searching messages...</p>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Results Section -->
-        <div id="resultsSection" style="display: none;">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-list-ul me-2"></i>Search Results
-                    </h5>
-                    <div>
-                        <span class="badge bg-primary" id="resultCount">0 results</span>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <!-- Loading -->
-                    <div id="loadingResults" class="loading">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2">Searching messages...</p>
-                    </div>
+                        <!-- Results -->
+                        <div id="resultsContainer"></div>
 
-                    <!-- Results -->
-                    <div id="resultsContainer"></div>
-
-                    <!-- Pagination -->
-                    <nav id="paginationContainer" style="display: none;">
-                        <ul class="pagination justify-content-center" id="pagination"></ul>
-                    </nav>
+                        <!-- Pagination -->
+                        <nav id="paginationContainer" style="display: none;">
+                            <ul class="pagination justify-content-center" id="pagination"></ul>
+                        </nav>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div th:fragment="scripts">
-        <script>
-            let currentPage = 0;
-            let totalPages = 0;
-            let currentSearchParams = {};
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p class="mb-0">&copy; 2024 WhatsApp Chat Viewer. All rights reserved.</p>
+        </div>
+    </footer>
 
-            document.addEventListener('DOMContentLoaded', function() {
-                const searchForm = document.getElementById('searchForm');
-                searchForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    performSearch();
-                });
-
-                // Load initial results if no search parameters
-                if (window.location.search) {
-                    loadFromUrl();
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Utils Object -->
+    <script>
+        const Utils = {
+            showLoading: function(elementId) {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.style.display = 'block';
                 }
+            },
+            
+            hideLoading: function(elementId) {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.style.display = 'none';
+                }
+            },
+            
+            showAlert: function(message, type = 'info') {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+                alertDiv.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                
+                const container = document.querySelector('.container');
+                container.insertBefore(alertDiv, container.firstChild);
+                
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, 5000);
+            },
+            
+            formatDate: function(timestamp) {
+                if (!timestamp) return '';
+                const date = new Date(timestamp);
+                return date.toLocaleString();
+            }
+        };
+    </script>
+
+    <!-- Search Scripts -->
+    <script>
+        let currentPage = 0;
+        let totalPages = 0;
+        let currentSearchParams = {};
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchForm = document.getElementById('searchForm');
+            searchForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                performSearch();
             });
 
-            function performSearch(page = 0) {
-                const formData = new FormData(document.getElementById('searchForm'));
-                const params = new URLSearchParams();
-                
-                // Build search parameters
-                for (let [key, value] of formData.entries()) {
-                    if (value) {
-                        params.append(key, value);
-                    }
-                }
-                
-                // Add pagination
-                params.append('page', page);
-                
-                currentSearchParams = Object.fromEntries(params);
-                currentPage = page;
-                
-                // Show loading
-                Utils.showLoading('loadingResults');
-                document.getElementById('resultsSection').style.display = 'block';
-                document.getElementById('resultsContainer').innerHTML = '';
-                document.getElementById('paginationContainer').style.display = 'none';
-                
-                // Perform search
-                const url = `/api/chat-entries/search?${params.toString()}`;
-                
-                fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
-                        Utils.hideLoading('loadingResults');
-                        displayResults(data);
-                    })
-                    .catch(error => {
-                        Utils.hideLoading('loadingResults');
-                        Utils.showAlert('Search failed: ' + error.message, 'danger');
-                    });
+            // Load initial results if no search parameters
+            if (window.location.search) {
+                loadFromUrl();
             }
+        });
 
-            function displayResults(data) {
-                const container = document.getElementById('resultsContainer');
-                const countElement = document.getElementById('resultCount');
-                
-                countElement.textContent = `${data.totalElements} results`;
-                
-                if (data.content.length === 0) {
-                    container.innerHTML = `
-                        <div class="text-center py-5">
-                            <i class="bi bi-search display-4 text-muted mb-3"></i>
-                            <h5>No messages found</h5>
-                            <p class="text-muted">Try adjusting your search criteria</p>
-                        </div>
-                    `;
-                    return;
+        function performSearch(page = 0) {
+            const formData = new FormData(document.getElementById('searchForm'));
+            const params = new URLSearchParams();
+            
+            // Build search parameters
+            for (let [key, value] of formData.entries()) {
+                if (value) {
+                    params.append(key, value);
                 }
-                
-                let html = '';
-                data.content.forEach(entry => {
-                    html += `
-                        <div class="chat-entry">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <span class="author">${entry.author}</span>
-                                    <span class="badge ${entry.type.toLowerCase()}">${entry.type}</span>
-                                    ${entry.attachmentHash ? '<span class="badge bg-secondary">Has Attachment</span>' : ''}
-                                </div>
-                                <small class="timestamp">${Utils.formatDate(entry.timestamp)}</small>
-                            </div>
-                            <div class="content">${escapeHtml(entry.payload)}</div>
-                            ${entry.attachmentHash ? `
-                                <div class="mt-2">
-                                    <small class="text-muted">
-                                        <i class="bi bi-paperclip me-1"></i>
-                                        Attachment: <code>${entry.attachmentHash}</code>
-                                    </small>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
+            }
+            
+            // Add pagination
+            params.append('page', page);
+            
+            currentSearchParams = Object.fromEntries(params);
+            currentPage = page;
+            
+            // Show loading
+            Utils.showLoading('loadingResults');
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('resultsContainer').innerHTML = '';
+            document.getElementById('paginationContainer').style.display = 'none';
+            
+            // Perform search
+            const url = `/api/chat-entries/search?${params.toString()}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    Utils.hideLoading('loadingResults');
+                    displayResults(data);
+                })
+                .catch(error => {
+                    Utils.hideLoading('loadingResults');
+                    Utils.showAlert('Search failed: ' + error.message, 'danger');
                 });
-                
-                container.innerHTML = html;
-                
-                // Setup pagination
-                setupPagination(data);
-            }
+        }
 
-            function setupPagination(data) {
-                const paginationContainer = document.getElementById('paginationContainer');
-                const pagination = document.getElementById('pagination');
-                
-                totalPages = data.totalPages;
-                currentPage = data.number;
-                
-                if (totalPages <= 1) {
-                    paginationContainer.style.display = 'none';
-                    return;
-                }
-                
-                let paginationHtml = '';
-                
-                // Previous button
+        function displayResults(data) {
+            const container = document.getElementById('resultsContainer');
+            const countElement = document.getElementById('resultCount');
+            
+            countElement.textContent = `${data.totalElements} results`;
+            
+            if (data.content.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-search display-4 text-muted mb-3"></i>
+                        <h5>No messages found</h5>
+                        <p class="text-muted">Try adjusting your search criteria</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            data.content.forEach(entry => {
+                html += `
+                    <div class="chat-entry">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <span class="author">${entry.author}</span>
+                                <span class="badge ${entry.type.toLowerCase()}">${entry.type}</span>
+                                ${entry.attachmentHash ? '<span class="badge bg-secondary">Has Attachment</span>' : ''}
+                            </div>
+                            <small class="timestamp">${Utils.formatDate(entry.timestamp)}</small>
+                        </div>
+                        <div class="content">${escapeHtml(entry.payload)}</div>
+                        ${entry.attachmentHash ? `
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-paperclip me-1"></i>
+                                    Attachment: <code>${entry.attachmentHash}</code>
+                                </small>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            
+            // Setup pagination
+            setupPagination(data);
+        }
+
+        function setupPagination(data) {
+            const paginationContainer = document.getElementById('paginationContainer');
+            const pagination = document.getElementById('pagination');
+            
+            totalPages = data.totalPages;
+            currentPage = data.number;
+            
+            if (totalPages <= 1) {
+                paginationContainer.style.display = 'none';
+                return;
+            }
+            
+            let paginationHtml = '';
+            
+            // Previous button
+            paginationHtml += `
+                <li class="page-item ${currentPage === 0 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+                </li>
+            `;
+            
+            // Page numbers
+            const startPage = Math.max(0, currentPage - 2);
+            const endPage = Math.min(totalPages - 1, currentPage + 2);
+            
+            for (let i = startPage; i <= endPage; i++) {
                 paginationHtml += `
-                    <li class="page-item ${currentPage === 0 ? 'disabled' : ''}">
-                        <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${i})">${i + 1}</a>
                     </li>
                 `;
-                
-                // Page numbers
-                const startPage = Math.max(0, currentPage - 2);
-                const endPage = Math.min(totalPages - 1, currentPage + 2);
-                
-                for (let i = startPage; i <= endPage; i++) {
-                    paginationHtml += `
-                        <li class="page-item ${i === currentPage ? 'active' : ''}">
-                            <a class="page-link" href="#" onclick="changePage(${i})">${i + 1}</a>
-                        </li>
-                    `;
-                }
-                
-                // Next button
-                paginationHtml += `
-                    <li class="page-item ${currentPage === totalPages - 1 ? 'disabled' : ''}">
-                        <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
-                    </li>
-                `;
-                
-                pagination.innerHTML = paginationHtml;
-                paginationContainer.style.display = 'block';
             }
+            
+            // Next button
+            paginationHtml += `
+                <li class="page-item ${currentPage === totalPages - 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+                </li>
+            `;
+            
+            pagination.innerHTML = paginationHtml;
+            paginationContainer.style.display = 'block';
+        }
 
-            function changePage(page) {
-                if (page >= 0 && page < totalPages) {
-                    performSearch(page);
-                }
+        function changePage(page) {
+            if (page >= 0 && page < totalPages) {
+                performSearch(page);
             }
+        }
 
-            function clearForm() {
-                document.getElementById('searchForm').reset();
-                document.getElementById('resultsSection').style.display = 'none';
-            }
+        function clearForm() {
+            document.getElementById('searchForm').reset();
+            document.getElementById('resultsSection').style.display = 'none';
+        }
 
-            function loadQuickSearches() {
-                const modal = new bootstrap.Modal(document.getElementById('quickSearchesModal'));
-                modal.show();
-            }
+        function loadQuickSearches() {
+            const modal = new bootstrap.Modal(document.getElementById('quickSearchesModal'));
+            modal.show();
+        }
 
-            function applyQuickSearch(type) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('quickSearchesModal'));
-                modal.hide();
-                
-                // Clear form first
-                clearForm();
-                
-                const now = new Date();
-                const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                
-                switch (type) {
-                    case 'recent':
-                        document.getElementById('startDate').value = yesterday.toISOString().slice(0, 16);
-                        document.getElementById('endDate').value = now.toISOString().slice(0, 16);
-                        break;
-                    case 'media':
-                        document.getElementById('hasAttachment').value = 'true';
-                        break;
-                    case 'images':
-                        document.getElementById('type').value = 'IMAGE';
-                        break;
-                    case 'videos':
-                        document.getElementById('type').value = 'VIDEO';
-                        break;
-                }
-                
-                performSearch();
+        function applyQuickSearch(type) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('quickSearchesModal'));
+            modal.hide();
+            
+            // Clear form first
+            clearForm();
+            
+            const now = new Date();
+            const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            
+            switch (type) {
+                case 'recent':
+                    document.getElementById('startDate').value = yesterday.toISOString().slice(0, 16);
+                    document.getElementById('endDate').value = now.toISOString().slice(0, 16);
+                    break;
+                case 'media':
+                    document.getElementById('hasAttachment').value = 'true';
+                    break;
+                case 'images':
+                    document.getElementById('type').value = 'IMAGE';
+                    break;
+                case 'videos':
+                    document.getElementById('type').value = 'VIDEO';
+                    break;
             }
+            
+            performSearch();
+        }
 
-            function loadFromUrl() {
-                const urlParams = new URLSearchParams(window.location.search);
-                
-                // Populate form fields
-                if (urlParams.has('keyword')) {
-                    document.getElementById('keyword').value = urlParams.get('keyword');
-                }
-                if (urlParams.has('author')) {
-                    document.getElementById('author').value = urlParams.get('author');
-                }
-                if (urlParams.has('type')) {
-                    document.getElementById('type').value = urlParams.get('type');
-                }
-                if (urlParams.has('startDate')) {
-                    document.getElementById('startDate').value = urlParams.get('startDate');
-                }
-                if (urlParams.has('endDate')) {
-                    document.getElementById('endDate').value = urlParams.get('endDate');
-                }
-                if (urlParams.has('hasAttachment')) {
-                    document.getElementById('hasAttachment').value = urlParams.get('hasAttachment');
-                }
-                if (urlParams.has('size')) {
-                    document.getElementById('pageSize').value = urlParams.get('size');
-                }
-                
-                // Perform search
-                performSearch();
+        function loadFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Populate form fields
+            if (urlParams.has('keyword')) {
+                document.getElementById('keyword').value = urlParams.get('keyword');
             }
+            if (urlParams.has('author')) {
+                document.getElementById('author').value = urlParams.get('author');
+            }
+            if (urlParams.has('type')) {
+                document.getElementById('type').value = urlParams.get('type');
+            }
+            if (urlParams.has('startDate')) {
+                document.getElementById('startDate').value = urlParams.get('startDate');
+            }
+            if (urlParams.has('endDate')) {
+                document.getElementById('endDate').value = urlParams.get('endDate');
+            }
+            if (urlParams.has('hasAttachment')) {
+                document.getElementById('hasAttachment').value = urlParams.get('hasAttachment');
+            }
+            if (urlParams.has('size')) {
+                document.getElementById('pageSize').value = urlParams.get('size');
+            }
+            
+            // Perform search
+            performSearch();
+        }
 
-            function escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-        </script>
-    </div>
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
 </body>
 </html> 

@@ -71,29 +71,62 @@ public class ChatEntryService {
             int size) {
         
         Pageable pageable = PageRequest.of(page, size);
-        Page<ChatEntryEntity> results = chatEntryRepository.searchChatEntries(author, type, startDate, endDate, pageable);
+        Page<ChatEntryEntity> allEntries = chatEntryRepository.findAll(pageable);
         
-        // Filter by hasAttachment if specified
-        if (hasAttachment != null) {
-            List<ChatEntryEntity> filteredContent = results.getContent().stream()
-                    .filter(entry -> {
-                        if (hasAttachment) {
-                            return entry.getAttachmentHash() != null && !entry.getAttachmentHash().isEmpty();
-                        } else {
-                            return entry.getAttachmentHash() == null || entry.getAttachmentHash().isEmpty();
+        // Filter the results based on criteria
+        List<ChatEntryEntity> filteredContent = allEntries.getContent().stream()
+                .filter(entry -> {
+                    // Filter by author
+                    if (author != null && !author.trim().isEmpty()) {
+                        if (!entry.getAuthor().equalsIgnoreCase(author.trim())) {
+                            return false;
                         }
-                    })
-                    .collect(Collectors.toList());
-            
-            // Create a new page with filtered content
-            return new org.springframework.data.domain.PageImpl<>(
-                    filteredContent, 
-                    pageable, 
-                    results.getTotalElements()
-            );
-        }
+                    }
+                    
+                    // Filter by type
+                    if (type != null) {
+                        if (!entry.getType().equals(type)) {
+                            return false;
+                        }
+                    }
+                    
+                    // Filter by start date
+                    if (startDate != null) {
+                        if (entry.getLocalDateTime() == null || entry.getLocalDateTime().isBefore(startDate)) {
+                            return false;
+                        }
+                    }
+                    
+                    // Filter by end date
+                    if (endDate != null) {
+                        if (entry.getLocalDateTime() == null || entry.getLocalDateTime().isAfter(endDate)) {
+                            return false;
+                        }
+                    }
+                    
+                    // Filter by hasAttachment
+                    if (hasAttachment != null) {
+                        if (hasAttachment) {
+                            if (entry.getAttachmentHash() == null || entry.getAttachmentHash().isEmpty()) {
+                                return false;
+                            }
+                        } else {
+                            if (entry.getAttachmentHash() != null && !entry.getAttachmentHash().isEmpty()) {
+                                return false;
+                            }
+                        }
+                    }
+                    
+                    return true;
+                })
+                .collect(Collectors.toList());
         
-        return results;
+        // Create a new page with filtered content
+        return new org.springframework.data.domain.PageImpl<>(
+                filteredContent, 
+                pageable, 
+                allEntries.getTotalElements()
+        );
     }
     
     /**
@@ -117,7 +150,60 @@ public class ChatEntryService {
             int size) {
         
         Pageable pageable = PageRequest.of(page, size);
-        return chatEntryRepository.advancedSearch(keyword, author, type, startDate, endDate, pageable);
+        Page<ChatEntryEntity> allEntries = chatEntryRepository.findAll(pageable);
+        
+        // Filter the results based on criteria
+        List<ChatEntryEntity> filteredContent = allEntries.getContent().stream()
+                .filter(entry -> {
+                    // Filter by keyword
+                    if (keyword != null && !keyword.trim().isEmpty()) {
+                        String searchKeyword = keyword.toLowerCase().trim();
+                        String payload = entry.getPayload() != null ? entry.getPayload().toLowerCase() : "";
+                        String entryAuthor = entry.getAuthor() != null ? entry.getAuthor().toLowerCase() : "";
+                        
+                        if (!payload.contains(searchKeyword) && !entryAuthor.contains(searchKeyword)) {
+                            return false;
+                        }
+                    }
+                    
+                    // Filter by author
+                    if (author != null && !author.trim().isEmpty()) {
+                        if (!entry.getAuthor().equalsIgnoreCase(author.trim())) {
+                            return false;
+                        }
+                    }
+                    
+                    // Filter by type
+                    if (type != null) {
+                        if (!entry.getType().equals(type)) {
+                            return false;
+                        }
+                    }
+                    
+                    // Filter by start date
+                    if (startDate != null) {
+                        if (entry.getLocalDateTime() == null || entry.getLocalDateTime().isBefore(startDate)) {
+                            return false;
+                        }
+                    }
+                    
+                    // Filter by end date
+                    if (endDate != null) {
+                        if (entry.getLocalDateTime() == null || entry.getLocalDateTime().isAfter(endDate)) {
+                            return false;
+                        }
+                    }
+                    
+                    return true;
+                })
+                .collect(Collectors.toList());
+        
+        // Create a new page with filtered content
+        return new org.springframework.data.domain.PageImpl<>(
+                filteredContent, 
+                pageable, 
+                allEntries.getTotalElements()
+        );
     }
     
     /**
