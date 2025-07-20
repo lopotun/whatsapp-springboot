@@ -17,7 +17,10 @@ import java.time.LocalDateTime;
     @Index(name = "idx_chat_entries_local_date_time", columnList = "local_date_time"),
     @Index(name = "idx_chat_entries_author_type", columnList = "author, type"),
     @Index(name = "idx_chat_entries_date_author", columnList = "local_date_time, author"),
-    @Index(name = "idx_chat_entries_created_at", columnList = "created_at")
+    @Index(name = "idx_chat_entries_created_at", columnList = "created_at"),
+    @Index(name = "idx_chat_entries_user_id", columnList = "user_id"),
+    @Index(name = "idx_chat_entries_chat_id", columnList = "chat_id"),
+    @Index(name = "idx_chat_entries_user_chat", columnList = "user_id, chat_id")
 })
 @Data
 @Builder
@@ -59,6 +62,14 @@ public class ChatEntryEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
+    // User who owns this chat entry
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+    
+    // Chat ID this entry belongs to (based on uploaded filename)
+    @Column(name = "chat_id", nullable = false)
+    private String chatId;
+    
     @PrePersist
     protected void onCreate() {
         if (author == null || author.trim().isEmpty()) {
@@ -67,7 +78,7 @@ public class ChatEntryEntity {
     }
     
     // Convert from ChatEntry model to entity
-    public static ChatEntryEntity fromChatEntry(ChatEntry chatEntry) {
+    public static ChatEntryEntity fromChatEntry(ChatEntry chatEntry, Long userId, String chatId) {
         return ChatEntryEntity.builder()
                 .timestamp(chatEntry.getTimestamp())
                 .payload(chatEntry.getPayload())
@@ -76,6 +87,8 @@ public class ChatEntryEntity {
                 .type(chatEntry.getType())
                 .localDateTime(chatEntry.getLocalDateTime())
                 .attachmentHash(chatEntry.getAttachmentHash())
+                .userId(userId)
+                .chatId(chatId)
                 .build();
     }
     

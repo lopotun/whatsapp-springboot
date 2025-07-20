@@ -1,9 +1,8 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.controller;
 
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatService;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatUploadService;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.service.UserService;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -15,22 +14,20 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 
-@WebMvcTest(ChatController.class)
-@AutoConfigureMockMvc(addFilters = false) // Disable security filters for tests
+@WebMvcTest(ChatUploadController.class)
+@AutoConfigureMockMvc
 @TestPropertySource(properties = {
     "spring.mvc.async.request-timeout=180000",
     "server.servlet.encoding.charset=UTF-8",
@@ -45,7 +42,10 @@ class ChatControllerTest {
     private WebApplicationContext webApplicationContext;
 
     @MockitoBean
-    private ChatService chatService;
+    private ChatUploadService chatUploadService;
+
+    @MockitoBean
+    private UserService userService;
 
     private MockMvc createMockMvcWithUtf8() {
         return MockMvcBuilders
@@ -55,8 +55,8 @@ class ChatControllerTest {
     }
 
     @Test
-    void uploadChat_shouldStreamResponse() throws Exception {
-        String testContent = "Test chat content";
+    void uploadTextFile_shouldReturnSuccess() throws Exception {
+        String testContent = "12/25/23, 14:30 - John Doe: Hello, world!";
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "chat.txt",
@@ -64,91 +64,34 @@ class ChatControllerTest {
                 testContent.getBytes()
         );
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Consumer<ChatEntry> consumer = (Consumer<ChatEntry>) invocation.getArgument(1, Consumer.class);
-            consumer.accept(ChatEntry.builder()
-                    .timestamp("6/21/24, 7:19 AM")
-                    .payload("Test Entry")
-                    .build());
-            return null;
-        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any(), ArgumentMatchers.any());
+        ChatUploadService.UploadResult result = ChatUploadService.UploadResult.builder()
+                .chatId("chat_123_abc")
+                .originalFileName("chat.txt")
+                .fileType("TXT")
+                .totalEntries(1)
+                .totalAttachments(0)
+                .success(true)
+                .build();
 
-        // 1. Perform the request and check async started
-        var mvcResult = mockMvc.perform(multipart("/api/chat/upload").file(file))
-                .andExpect(request().asyncStarted())
-                .andReturn();
+        when(chatUploadService.uploadTextFile(any(), any())).thenReturn(result);
+        when(userService.findByUsername(any())).thenReturn(java.util.Optional.of(
+                net.kem.whatsapp.chatviewer.whatsappspringboot.model.User.builder()
+                        .id(1L)
+                        .username("testuser")
+                        .build()
+        ));
 
-        // 2. Dispatch the async result and assert on the response
-        mockMvc.perform(asyncDispatch(mvcResult))
+        mockMvc.perform(multipart("/api/upload/text")
+                        .file(file)
+                        .with(user("testuser"))
+                        .with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_NDJSON))
-                .andExpect(content().string(containsString(
-                        """
-                        {"timestamp":"6/21/24, 7:19 AM","payload":"Test Entry"}
-                        """)));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().string(containsString("chat_123_abc")));
     }
 
     @Test
-    void uploadChat_shouldStreamResponseX() throws Exception {
-        // Prepare test data
-        String testContent = "Test chat content";
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "chat.txt",
-                "text/plain",
-                testContent.getBytes()
-        );
-
-        // Use a fixed timestamp for predictable test output
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Consumer<ChatEntry> consumer = (Consumer<ChatEntry>) invocation.getArgument(1, Consumer.class);
-            consumer.accept(ChatEntry.builder()
-                    .timestamp("6/21/24, 7:19")
-                    .payload("Test Entry")
-                    .build());
-            return null;
-        }).when(chatService).streamChatFile(any(InputStream.class), ArgumentMatchers.any(), ArgumentMatchers.any());
-
-        // 1. Perform the request and check async started
-        MockMvc mockMvcUtf8 = createMockMvcWithUtf8();
-        var mvcResult = mockMvcUtf8.perform(multipart("/api/chat/uploadX").file(file))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-
-        // 2. Dispatch the async result and assert on the response
-        mockMvcUtf8.perform(asyncDispatch(mvcResult))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString(
-                        "ChatEntry(timestamp=6/21/24, 7:19, author=null, payload=Test Entry, fileName=null)")));
-    }
-
-    @Test
-    void uploadChat_shouldHandleEmptyFile() throws Exception {
-        // Prepare empty file
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "empty.txt",
-                "text/plain",
-                new byte[0]
-        );
-
-        // Perform request and verify
-        mockMvc.perform(multipart("/api/chat/upload")
-                        .file(file))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void uploadChat_withoutFile_shouldReturnBadRequest() throws Exception {
-        mockMvc.perform(multipart("/api/chat/upload"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void uploadZipFile_shouldProcessZipFile() throws Exception {
-        // Create a simple zip file content for testing
+    void uploadZipFile_shouldReturnSuccess() throws Exception {
         byte[] zipContent = createTestZipContent();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -157,24 +100,39 @@ class ChatControllerTest {
                 zipContent
         );
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Consumer<ChatEntry> consumer = (Consumer<ChatEntry>) invocation.getArgument(1, Consumer.class);
-            consumer.accept(ChatEntry.builder()
-                    .timestamp("6/21/24, 7:19")
-                    .payload("Test Entry from Zip")
-                    .build());
-            return List.of("/path/to/extracted/file1.jpg", "/path/to/extracted/file2.mp4");
-        }).when(chatService).processZipFile(any(InputStream.class), ArgumentMatchers.any());
+        ChatUploadService.UploadResult result = ChatUploadService.UploadResult.builder()
+                .chatId("zip_456_def")
+                .originalFileName("test.zip")
+                .fileType("ZIP")
+                .totalEntries(5)
+                .totalAttachments(3)
+                .extractedFiles(List.of("file1.jpg", "file2.mp4"))
+                .success(true)
+                .build();
 
-        var mvcResult = mockMvc.perform(multipart("/api/chat/upload-zip").file(file))
-                .andExpect(request().asyncStarted())
-                .andReturn();
+        when(chatUploadService.uploadZipFile(any(), any())).thenReturn(result);
+        when(userService.findByUsername(any())).thenReturn(java.util.Optional.of(
+                net.kem.whatsapp.chatviewer.whatsappspringboot.model.User.builder()
+                        .id(1L)
+                        .username("testuser")
+                        .build()
+        ));
 
-        mockMvc.perform(asyncDispatch(mvcResult))
+        mockMvc.perform(multipart("/api/upload/zip")
+                        .file(file)
+                        .with(user("testuser"))
+                        .with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_NDJSON))
-                .andExpect(content().string(containsString("Test Entry from Zip")));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().string(containsString("zip_456_def")));
+    }
+
+    @Test
+    void upload_withoutFile_shouldReturnBadRequest() throws Exception {
+        mockMvc.perform(multipart("/api/upload/text")
+                        .with(user("testuser"))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -186,7 +144,10 @@ class ChatControllerTest {
                 "not a zip file".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/chat/upload-zip").file(file))
+        mockMvc.perform(multipart("/api/upload/zip")
+                        .file(file)
+                        .with(user("testuser"))
+                        .with(csrf()))
                 .andExpect(status().isBadRequest());
     }
 

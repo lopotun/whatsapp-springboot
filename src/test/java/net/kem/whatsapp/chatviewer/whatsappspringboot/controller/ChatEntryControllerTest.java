@@ -56,10 +56,12 @@ class ChatEntryControllerTest {
                 .build();
     }
 
+    private final Long userId = 1L;
+
     @Test
     void getChatEntry_ShouldReturnChatEntry_WhenExists() throws Exception {
         // Given
-        when(chatEntryService.findById(1L)).thenReturn(Optional.of(testChatEntryEntity));
+        when(chatEntryService.findById(1L, userId)).thenReturn(Optional.of(testChatEntryEntity));
 
         // When & Then
         mockMvc.perform(get("/api/chat-entries/1"))
@@ -68,19 +70,19 @@ class ChatEntryControllerTest {
                 .andExpect(jsonPath("$.author").value("John Doe"))
                 .andExpect(jsonPath("$.payload").value("Hello, world!"));
 
-        verify(chatEntryService).findById(1L);
+        verify(chatEntryService).findById(1L, userId);
     }
 
     @Test
     void getChatEntry_ShouldReturn404_WhenNotExists() throws Exception {
         // Given
-        when(chatEntryService.findById(999L)).thenReturn(Optional.empty());
+        when(chatEntryService.findById(999L, userId)).thenReturn(Optional.empty());
 
         // When & Then
         mockMvc.perform(get("/api/chat-entries/999"))
                 .andExpect(status().isNotFound());
 
-        verify(chatEntryService).findById(999L);
+        verify(chatEntryService).findById(999L, userId);
     }
 
     @Test
@@ -104,7 +106,7 @@ class ChatEntryControllerTest {
     void searchChatEntries_ShouldReturnPagedResults() throws Exception {
         // Given
         Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), PageRequest.of(0, 20), 1);
-        when(chatEntryService.searchChatEntries(anyString(), any(), any(), any(), any(), anyInt(), anyInt()))
+        when(chatEntryService.searchChatEntries(anyLong(), anyString(), any(), any(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(page);
 
         // When & Then
@@ -117,14 +119,14 @@ class ChatEntryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].author").value("John Doe"));
 
-        verify(chatEntryService).searchChatEntries(eq("John Doe"), eq(ChatEntry.Type.TEXT), any(), any(), eq(false), eq(0), eq(20));
+        verify(chatEntryService).searchChatEntries(eq(userId), eq("John Doe"), eq(ChatEntry.Type.TEXT), any(), any(), eq(false), eq(0), eq(20));
     }
 
     @Test
     void searchByKeyword_ShouldReturnPagedResults() throws Exception {
         // Given
         Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), PageRequest.of(0, 20), 1);
-        when(chatEntryService.searchByKeyword(anyString(), anyInt(), anyInt())).thenReturn(page);
+        when(chatEntryService.searchByKeyword(anyLong(), anyString(), anyInt(), anyInt())).thenReturn(page);
 
         // When & Then
         mockMvc.perform(get("/api/chat-entries/search/keyword")
@@ -132,7 +134,7 @@ class ChatEntryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].payload").value("Hello, world!"));
 
-        verify(chatEntryService).searchByKeyword("Hello", 0, 20);
+        verify(chatEntryService).searchByKeyword(userId, "Hello", 0, 20);
     }
 
     @Test
@@ -261,33 +263,33 @@ class ChatEntryControllerTest {
     @Test
     void countByAuthor_ShouldReturnCount() throws Exception {
         // Given
-        when(chatEntryService.countByAuthor("John Doe")).thenReturn(5L);
+        when(chatEntryService.countByAuthor(userId, "John Doe")).thenReturn(5L);
 
         // When & Then
         mockMvc.perform(get("/api/chat-entries/stats/author/John Doe"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("5"));
 
-        verify(chatEntryService).countByAuthor("John Doe");
+        verify(chatEntryService).countByAuthor(userId, "John Doe");
     }
 
     @Test
     void countByType_ShouldReturnCount() throws Exception {
         // Given
-        when(chatEntryService.countByType(ChatEntry.Type.TEXT)).thenReturn(10L);
+        when(chatEntryService.countByType(userId, ChatEntry.Type.TEXT)).thenReturn(10L);
 
         // When & Then
         mockMvc.perform(get("/api/chat-entries/stats/type/TEXT"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("10"));
 
-        verify(chatEntryService).countByType(ChatEntry.Type.TEXT);
+        verify(chatEntryService).countByType(userId, ChatEntry.Type.TEXT);
     }
 
     @Test
     void countByDateRange_ShouldReturnCount() throws Exception {
         // Given
-        when(chatEntryService.countByDateRange(any(), any())).thenReturn(3L);
+        when(chatEntryService.countByDateRange(anyLong(), any(), any())).thenReturn(3L);
 
         // When & Then
         mockMvc.perform(get("/api/chat-entries/stats/date-range")
@@ -296,7 +298,7 @@ class ChatEntryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("3"));
 
-        verify(chatEntryService).countByDateRange(any(), any());
+        verify(chatEntryService).countByDateRange(anyLong(), any(), any());
     }
 
     @Test

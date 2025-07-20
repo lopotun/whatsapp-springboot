@@ -32,6 +32,9 @@ class ChatEntryServiceTest {
     @InjectMocks
     private ChatEntryService chatEntryService;
 
+    private final Long userId = 1L;
+    private final String chatId = "chat_abc";
+
     private ChatEntry testChatEntry;
     private ChatEntryEntity testChatEntryEntity;
 
@@ -61,7 +64,7 @@ class ChatEntryServiceTest {
         when(chatEntryRepository.save(any(ChatEntryEntity.class))).thenReturn(testChatEntryEntity);
 
         // When
-        ChatEntryEntity result = chatEntryService.saveChatEntry(testChatEntry);
+        ChatEntryEntity result = chatEntryService.saveChatEntry(testChatEntry, userId, chatId);
 
         // Then
         assertNotNull(result);
@@ -78,7 +81,7 @@ class ChatEntryServiceTest {
         when(chatEntryRepository.saveAll(anyList())).thenReturn(entities);
 
         // When
-        List<ChatEntryEntity> result = chatEntryService.saveChatEntries(chatEntries);
+        List<ChatEntryEntity> result = chatEntryService.saveChatEntries(chatEntries, userId, chatId);
 
         // Then
         assertNotNull(result);
@@ -92,7 +95,7 @@ class ChatEntryServiceTest {
         when(chatEntryRepository.findById(1L)).thenReturn(Optional.of(testChatEntryEntity));
 
         // When
-        Optional<ChatEntryEntity> result = chatEntryService.findById(1L);
+        Optional<ChatEntryEntity> result = chatEntryService.findById(1L, userId);
 
         // Then
         assertTrue(result.isPresent());
@@ -105,7 +108,7 @@ class ChatEntryServiceTest {
         when(chatEntryRepository.findById(999L)).thenReturn(Optional.empty());
 
         // When
-        Optional<ChatEntryEntity> result = chatEntryService.findById(999L);
+        Optional<ChatEntryEntity> result = chatEntryService.findById(999L, userId);
 
         // Then
         assertFalse(result.isPresent());
@@ -120,7 +123,7 @@ class ChatEntryServiceTest {
 
         // When
         Page<ChatEntryEntity> result = chatEntryService.searchChatEntries(
-                "John Doe", ChatEntry.Type.TEXT, LocalDateTime.now(), LocalDateTime.now(), true, 0, 10);
+                userId, "John Doe", ChatEntry.Type.TEXT, LocalDateTime.now(), LocalDateTime.now(), true, 0, 10);
 
         // Then
         assertNotNull(result);
@@ -136,7 +139,7 @@ class ChatEntryServiceTest {
         when(chatEntryRepository.searchByKeyword(anyString(), any(Pageable.class))).thenReturn(page);
 
         // When
-        Page<ChatEntryEntity> result = chatEntryService.searchByKeyword("Hello", 0, 10);
+        Page<ChatEntryEntity> result = chatEntryService.searchByKeyword(userId, "Hello", 0, 10);
 
         // Then
         assertNotNull(result);
@@ -264,27 +267,27 @@ class ChatEntryServiceTest {
     @Test
     void countByAuthor_ShouldReturnCount() {
         // Given
-        when(chatEntryRepository.countByAuthor("John Doe")).thenReturn(5L);
+        when(chatEntryRepository.countByUserIdAndAuthor(userId, "John Doe")).thenReturn(5L);
 
         // When
-        long result = chatEntryService.countByAuthor("John Doe");
+        long result = chatEntryService.countByAuthor(userId, "John Doe");
 
         // Then
         assertEquals(5L, result);
-        verify(chatEntryRepository).countByAuthor("John Doe");
+        verify(chatEntryRepository).countByUserIdAndAuthor(userId, "John Doe");
     }
 
     @Test
     void countByType_ShouldReturnCount() {
         // Given
-        when(chatEntryRepository.countByType(ChatEntry.Type.TEXT)).thenReturn(10L);
+        when(chatEntryRepository.countByUserIdAndType(userId, ChatEntry.Type.TEXT)).thenReturn(10L);
 
         // When
-        long result = chatEntryService.countByType(ChatEntry.Type.TEXT);
+        long result = chatEntryService.countByType(userId, ChatEntry.Type.TEXT);
 
         // Then
         assertEquals(10L, result);
-        verify(chatEntryRepository).countByType(ChatEntry.Type.TEXT);
+        verify(chatEntryRepository).countByUserIdAndType(userId, ChatEntry.Type.TEXT);
     }
 
     @Test
@@ -292,13 +295,13 @@ class ChatEntryServiceTest {
         // Given
         LocalDateTime start = LocalDateTime.now().minusDays(1);
         LocalDateTime end = LocalDateTime.now();
-        when(chatEntryRepository.countByLocalDateTimeBetween(start, end)).thenReturn(3L);
+        when(chatEntryRepository.countByUserIdAndLocalDateTimeBetween(userId, start, end)).thenReturn(3L);
 
         // When
-        long result = chatEntryService.countByDateRange(start, end);
+        long result = chatEntryService.countByDateRange(userId, start, end);
 
         // Then
         assertEquals(3L, result);
-        verify(chatEntryRepository).countByLocalDateTimeBetween(start, end);
+        verify(chatEntryRepository).countByUserIdAndLocalDateTimeBetween(userId, start, end);
     }
 } 

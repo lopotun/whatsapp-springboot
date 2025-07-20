@@ -377,7 +377,7 @@
                 const formData = new FormData();
                 formData.append('file', file);
 
-                const endpoint = currentUploadType === 'zip' ? '/api/chat/upload-zip' : '/api/chat/upload';
+                const endpoint = currentUploadType === 'zip' ? '/api/upload/zip' : '/api/upload/text';
                 
                 const xhr = new XMLHttpRequest();
                 

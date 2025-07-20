@@ -29,39 +29,72 @@ public class ChatEntryService {
     }
     
     /**
-     * Save a single chat entry
+     * Save a single chat entry with user and chat association
      */
-    public ChatEntryEntity saveChatEntry(ChatEntry chatEntry) {
-        ChatEntryEntity entity = ChatEntryEntity.fromChatEntry(chatEntry);
+    public ChatEntryEntity saveChatEntry(ChatEntry chatEntry, Long userId, String chatId) {
+        ChatEntryEntity entity = ChatEntryEntity.fromChatEntry(chatEntry, userId, chatId);
         ChatEntryEntity saved = chatEntryRepository.save(entity);
-        log.debug("Saved chat entry: {}", saved.getId());
+        log.debug("Saved chat entry: {} for user: {} and chat: {}", saved.getId(), userId, chatId);
         return saved;
     }
     
     /**
-     * Save multiple chat entries in batch
+     * Save multiple chat entries in batch with user and chat association
      */
-    public List<ChatEntryEntity> saveChatEntries(List<ChatEntry> chatEntries) {
+    public List<ChatEntryEntity> saveChatEntries(List<ChatEntry> chatEntries, Long userId, String chatId) {
         List<ChatEntryEntity> entities = chatEntries.stream()
-                .map(ChatEntryEntity::fromChatEntry)
+                .map(chatEntry -> ChatEntryEntity.fromChatEntry(chatEntry, userId, chatId))
                 .collect(Collectors.toList());
         
         List<ChatEntryEntity> saved = chatEntryRepository.saveAll(entities);
-        log.info("Saved {} chat entries in batch", saved.size());
+        log.info("Saved {} chat entries in batch for user: {} and chat: {}", saved.size(), userId, chatId);
         return saved;
     }
     
     /**
-     * Find chat entry by ID
+     * Find chat entry by ID (user-specific)
      */
-    public Optional<ChatEntryEntity> findById(Long id) {
-        return chatEntryRepository.findById(id);
+    public Optional<ChatEntryEntity> findById(Long id, Long userId) {
+        return chatEntryRepository.findById(id)
+                .filter(entry -> entry.getUserId().equals(userId));
     }
     
     /**
-     * Search chat entries with multiple criteria
+     * Get all chat entries for a user
+     */
+    public Page<ChatEntryEntity> findByUserId(Long userId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return chatEntryRepository.findByUserId(userId, pageable);
+    }
+    
+    /**
+     * Get all chat entries for a specific chat of a user
+     */
+    public Page<ChatEntryEntity> findByUserIdAndChatId(Long userId, String chatId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return chatEntryRepository.findByUserIdAndChatId(userId, chatId, pageable);
+    }
+    
+    /**
+     * Get all chat IDs for a user
+     */
+    public List<String> getChatIdsForUser(Long userId) {
+        return chatEntryRepository.findDistinctChatIdsByUserId(userId);
+    }
+    
+    /**
+     * Delete all entries for a specific chat of a user
+     */
+    public void deleteChat(Long userId, String chatId) {
+        chatEntryRepository.deleteByUserIdAndChatId(userId, chatId);
+        log.info("Deleted all entries for chat: {} of user: {}", chatId, userId);
+    }
+    
+    /**
+     * Search chat entries with multiple criteria (user-specific)
      */
     public Page<ChatEntryEntity> searchChatEntries(
+            Long userId,
             String author,
             ChatEntry.Type type,
             LocalDateTime startDate,
@@ -71,10 +104,10 @@ public class ChatEntryService {
             int size) {
         
         Pageable pageable = PageRequest.of(page, size);
-        Page<ChatEntryEntity> allEntries = chatEntryRepository.findAll(pageable);
+        Page<ChatEntryEntity> userEntries = chatEntryRepository.findByUserId(userId, pageable);
         
         // Filter the results based on criteria
-        List<ChatEntryEntity> filteredContent = allEntries.getContent().stream()
+        List<ChatEntryEntity> filteredContent = userEntries.getContent().stream()
                 .filter(entry -> {
                     // Filter by author
                     if (author != null && !author.trim().isEmpty()) {
@@ -125,16 +158,24 @@ public class ChatEntryService {
         return new org.springframework.data.domain.PageImpl<>(
                 filteredContent, 
                 pageable, 
-                allEntries.getTotalElements()
+                userEntries.getTotalElements()
         );
     }
     
     /**
-     * Search by keyword in payload and author
+     * Search by keyword in payload and author (user-specific)
      */
-    public Page<ChatEntryEntity> searchByKeyword(String keyword, int page, int size) {
+    public Page<ChatEntryEntity> searchByKeyword(Long userId, String keyword, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return chatEntryRepository.searchByKeyword(keyword, pageable);
+        return chatEntryRepository.searchByUserIdAndKeyword(userId, keyword, pageable);
+    }
+    
+    /**
+     * Search by keyword in a specific chat (user-specific)
+     */
+    public Page<ChatEntryEntity> searchByKeywordInChat(Long userId, String chatId, String keyword, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return chatEntryRepository.searchByUserIdAndChatIdAndKeyword(userId, chatId, keyword, pageable);
     }
     
     /**
@@ -258,16 +299,16 @@ public class ChatEntryService {
     /**
      * Get statistics
      */
-    public long countByAuthor(String author) {
-        return chatEntryRepository.countByAuthor(author);
+    public long countByAuthor(Long userId, String author) {
+        return chatEntryRepository.countByUserIdAndAuthor(userId, author);
     }
     
-    public long countByType(ChatEntry.Type type) {
-        return chatEntryRepository.countByType(type);
+    public long countByType(Long userId, ChatEntry.Type type) {
+        return chatEntryRepository.countByUserIdAndType(userId, type);
     }
     
-    public long countByDateRange(LocalDateTime start, LocalDateTime end) {
-        return chatEntryRepository.countByLocalDateTimeBetween(start, end);
+    public long countByDateRange(Long userId, LocalDateTime start, LocalDateTime end) {
+        return chatEntryRepository.countByUserIdAndLocalDateTimeBetween(userId, start, end);
     }
     
     /**

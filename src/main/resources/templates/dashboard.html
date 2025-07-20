@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - WhatsApp Chat Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+        .welcome-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        .feature-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            border: none;
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .icon-upload { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .icon-search { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; }
+        .icon-stats { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; }
+        .icon-attachments { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; }
+        .user-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+        }
+        .alert {
+            border-radius: 10px;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fab fa-whatsapp me-2"></i>WhatsApp Chat Viewer
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/upload">
+                            <i class="fas fa-upload me-1"></i>Upload
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/search">
+                            <i class="fas fa-search me-1"></i>Search
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/stats">
+                            <i class="fas fa-chart-bar me-1"></i>Stats
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/attachments">
+                            <i class="fas fa-paperclip me-1"></i>Attachments
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" 
+                           data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>
+                            <span sec:authentication="name">User</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/profile">
+                                <i class="fas fa-user me-2"></i>Profile
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Success Message -->
+        <div th:if="${success}" class="alert alert-success" role="alert">
+            <i class="fas fa-check-circle me-2"></i>
+            <span th:text="${success}"></span>
+        </div>
+
+        <!-- Welcome Section -->
+        <div class="row mb-4">
+            <div class="col-lg-8">
+                <div class="welcome-card p-4">
+                    <h2 class="mb-3">
+                        <i class="fas fa-hand-wave me-2 text-warning"></i>
+                        Welcome back, <span th:text="${user.firstName}">User</span>!
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Ready to explore your WhatsApp chats? Use the features below to upload, search, and analyze your chat data.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="user-info">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="me-3">
+                            <i class="fas fa-user-circle fa-2x"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0" th:text="${user.firstName + ' ' + user.lastName}">User Name</h6>
+                            <small th:text="${user.email}">user@example.com</small>
+                        </div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <small>Member since</small>
+                            <div th:text="${#temporals.format(user.createdAt, 'MMM yyyy')}">Jan 2024</div>
+                        </div>
+                        <div class="col-6">
+                            <small>Last login</small>
+                            <div th:if="${user.lastLogin}" th:text="${#temporals.format(user.lastLogin, 'MMM dd')}">Today</div>
+                            <div th:unless="${user.lastLogin}">First time</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Grid -->
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card p-4 text-center">
+                    <div class="feature-icon icon-upload mx-auto">
+                        <i class="fas fa-upload"></i>
+                    </div>
+                    <h5>Upload Chats</h5>
+                    <p class="text-muted">Import your WhatsApp chat exports and start analyzing your conversations.</p>
+                    <a href="/upload" class="btn btn-primary btn-sm">
+                        <i class="fas fa-arrow-right me-1"></i>Get Started
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card p-4 text-center">
+                    <div class="feature-icon icon-search mx-auto">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h5>Search Messages</h5>
+                    <p class="text-muted">Find specific messages, keywords, or conversations across all your chats.</p>
+                    <a href="/search" class="btn btn-primary btn-sm">
+                        <i class="fas fa-arrow-right me-1"></i>Search Now
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card p-4 text-center">
+                    <div class="feature-icon icon-stats mx-auto">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <h5>View Statistics</h5>
+                    <p class="text-muted">Get insights into your chat activity, message patterns, and usage statistics.</p>
+                    <a href="/stats" class="btn btn-primary btn-sm">
+                        <i class="fas fa-arrow-right me-1"></i>View Stats
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card p-4 text-center">
+                    <div class="feature-icon icon-attachments mx-auto">
+                        <i class="fas fa-paperclip"></i>
+                    </div>
+                    <h5>Manage Attachments</h5>
+                    <p class="text-muted">Browse and organize media files, documents, and other attachments from your chats.</p>
+                    <a href="/attachments" class="btn btn-primary btn-sm">
+                        <i class="fas fa-arrow-right me-1"></i>Browse Files
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="welcome-card p-4">
+                    <h4 class="mb-3">
+                        <i class="fas fa-bolt me-2 text-warning"></i>Quick Actions
+                    </h4>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <a href="/upload" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-upload me-2"></i>Upload New Chat
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/search" class="btn btn-outline-success w-100">
+                                <i class="fas fa-search me-2"></i>Quick Search
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/stats" class="btn btn-outline-info w-100">
+                                <i class="fas fa-chart-line me-2"></i>View Analytics
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/profile" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-cog me-2"></i>Settings
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

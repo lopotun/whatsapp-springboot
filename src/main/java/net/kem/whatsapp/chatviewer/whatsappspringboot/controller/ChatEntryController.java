@@ -1,13 +1,16 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.controller;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatEntryService;
-import org.springframework.beans.factory.annotation.Autowired;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -18,39 +21,49 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/chat-entries")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class ChatEntryController {
     
     private final ChatEntryService chatEntryService;
+    private final UserService userService;
     
-    @Autowired
-    public ChatEntryController(ChatEntryService chatEntryService) {
-        this.chatEntryService = chatEntryService;
+    /**
+     * Get current user ID from authentication
+     */
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        return userService.findByUsername(username)
+                .map(user -> user.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
     
     /**
-     * Get chat entry by ID
+     * Get chat entry by ID (user-specific)
      */
     @GetMapping("/{id}")
     public ResponseEntity<ChatEntryEntity> getChatEntry(@PathVariable Long id) {
-        Optional<ChatEntryEntity> chatEntry = chatEntryService.findById(id);
+        Long userId = getCurrentUserId();
+        Optional<ChatEntryEntity> chatEntry = chatEntryService.findById(id, userId);
         return chatEntry.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
     
     /**
-     * Get all chat entries with pagination
+     * Get all chat entries with pagination (user-specific)
      */
     @GetMapping
     public ResponseEntity<Page<ChatEntryEntity>> getAllChatEntries(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         
-        Page<ChatEntryEntity> chatEntries = chatEntryService.findAll(page, size);
+        Long userId = getCurrentUserId();
+        Page<ChatEntryEntity> chatEntries = chatEntryService.findByUserId(userId, page, size);
         return ResponseEntity.ok(chatEntries);
     }
     
     /**
-     * Search chat entries with multiple criteria
+     * Search chat entries with multiple criteria (user-specific)
      */
     @GetMapping("/search")
     public ResponseEntity<Page<ChatEntryEntity>> searchChatEntries(
@@ -62,13 +75,14 @@ public class ChatEntryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         
+        Long userId = getCurrentUserId();
         Page<ChatEntryEntity> results = chatEntryService.searchChatEntries(
-                author, type, startDate, endDate, hasAttachment, page, size);
+                userId, author, type, startDate, endDate, hasAttachment, page, size);
         return ResponseEntity.ok(results);
     }
     
     /**
-     * Search by keyword in payload and author
+     * Search by keyword in payload and author (user-specific)
      */
     @GetMapping("/search/keyword")
     public ResponseEntity<Page<ChatEntryEntity>> searchByKeyword(
@@ -76,7 +90,8 @@ public class ChatEntryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         
-        Page<ChatEntryEntity> results = chatEntryService.searchByKeyword(keyword, page, size);
+        Long userId = getCurrentUserId();
+        Page<ChatEntryEntity> results = chatEntryService.searchByKeyword(userId, keyword, page, size);
         return ResponseEntity.ok(results);
     }
     
@@ -176,17 +191,19 @@ public class ChatEntryController {
     }
     
     /**
-     * Get statistics
+     * Get statistics (user-specific)
      */
     @GetMapping("/stats/author/{author}")
     public ResponseEntity<Long> countByAuthor(@PathVariable String author) {
-        long count = chatEntryService.countByAuthor(author);
+        Long userId = getCurrentUserId();
+        long count = chatEntryService.countByAuthor(userId, author);
         return ResponseEntity.ok(count);
     }
     
     @GetMapping("/stats/type/{type}")
     public ResponseEntity<Long> countByType(@PathVariable ChatEntry.Type type) {
-        long count = chatEntryService.countByType(type);
+        Long userId = getCurrentUserId();
+        long count = chatEntryService.countByType(userId, type);
         return ResponseEntity.ok(count);
     }
     
@@ -195,7 +212,8 @@ public class ChatEntryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         
-        long count = chatEntryService.countByDateRange(start, end);
+        Long userId = getCurrentUserId();
+        long count = chatEntryService.countByDateRange(userId, start, end);
         return ResponseEntity.ok(count);
     }
     
