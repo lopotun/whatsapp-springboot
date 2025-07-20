@@ -116,8 +116,7 @@ class ChatEntryServiceTest {
         // Given
         Pageable pageable = PageRequest.of(0, 10);
         Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
-        when(chatEntryRepository.searchChatEntries(anyString(), any(), any(), any(), any(Pageable.class)))
-                .thenReturn(page);
+        when(chatEntryRepository.findAll(any(Pageable.class))).thenReturn(page);
 
         // When
         Page<ChatEntryEntity> result = chatEntryService.searchChatEntries(
@@ -126,7 +125,7 @@ class ChatEntryServiceTest {
         // Then
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(chatEntryRepository).searchChatEntries(anyString(), any(), any(), any(), any(Pageable.class));
+        verify(chatEntryRepository).findAll(any(Pageable.class));
     }
 
     @Test
@@ -150,8 +149,7 @@ class ChatEntryServiceTest {
         // Given
         Pageable pageable = PageRequest.of(0, 10);
         Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
-        when(chatEntryRepository.advancedSearch(anyString(), anyString(), any(), any(), any(), any(Pageable.class)))
-                .thenReturn(page);
+        when(chatEntryRepository.findAll(any(Pageable.class))).thenReturn(page);
 
         // When
         Page<ChatEntryEntity> result = chatEntryService.advancedSearch(
@@ -160,7 +158,7 @@ class ChatEntryServiceTest {
         // Then
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(chatEntryRepository).advancedSearch(anyString(), anyString(), any(), any(), any(), any(Pageable.class));
+        verify(chatEntryRepository).findAll(any(Pageable.class));
     }
 
     @Test

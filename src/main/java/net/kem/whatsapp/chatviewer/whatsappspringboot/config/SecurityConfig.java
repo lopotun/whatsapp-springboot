@@ -2,6 +2,7 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -17,7 +18,7 @@ public class SecurityConfig {
                 .anyRequest().permitAll() // Allow all requests
             )
             .csrf(csrf -> csrf.disable())
-            .headers(headers -> headers.frameOptions().disable()); // Allow H2 console
+            .headers(headers -> headers.frameOptions(Customizer.withDefaults()).disable()); // Allow H2 console
         
         return http.build();
     }
