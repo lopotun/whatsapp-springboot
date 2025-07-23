@@ -1,26 +1,35 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.controller;
 
-import lombok.extern.slf4j.Slf4j;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Attachment;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Location;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.service.AttachmentService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Attachment;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Location;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.service.AttachmentService;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.service.UserService;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/attachments")
 public class AttachmentController {
-    
-    private final AttachmentService attachmentService;
 
-    public AttachmentController(@Autowired AttachmentService attachmentService) {
+    private final AttachmentService attachmentService;
+    private final UserService userService;
+
+    public AttachmentController(@Autowired AttachmentService attachmentService,
+            @Autowired UserService userService) {
         this.attachmentService = attachmentService;
+        this.userService = userService;
     }
 
     /**
@@ -29,10 +38,9 @@ public class AttachmentController {
     @GetMapping("/hash/{hash}")
     public ResponseEntity<Attachment> getAttachmentByHash(@PathVariable String hash) {
         Optional<Attachment> attachment = attachmentService.findByHash(hash);
-        return attachment.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        return attachment.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
-    
+
     /**
      * Check if attachment exists by hash
      */
@@ -41,7 +49,7 @@ public class AttachmentController {
         boolean exists = attachmentService.existsByHash(hash);
         return ResponseEntity.ok(exists);
     }
-    
+
     /**
      * Get all locations for a client
      */
@@ -50,18 +58,35 @@ public class AttachmentController {
         List<Location> locations = attachmentService.findLocationsByClientId(clientId);
         return ResponseEntity.ok(locations);
     }
-    
+
     /**
      * Get locations for a client with specific status
      */
     @GetMapping("/locations/client/{clientId}/status/{status}")
     public ResponseEntity<List<Location>> getLocationsByClientIdAndStatus(
-            @PathVariable String clientId, 
-            @PathVariable Byte status) {
-        List<Location> locations = attachmentService.findLocationsByClientIdAndStatus(clientId, status);
+            @PathVariable String clientId, @PathVariable Byte status) {
+        List<Location> locations =
+                attachmentService.findLocationsByClientIdAndStatus(clientId, status);
         return ResponseEntity.ok(locations);
     }
-    
+
+    /**
+     * Get all attachments for the current user
+     */
+    @GetMapping
+    public ResponseEntity<List<Attachment>> getUserAttachments() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        return userService.findByUsername(username).map(user -> {
+            String clientId = "user_" + user.getId();
+            List<Location> userLocations = attachmentService.findLocationsByClientId(clientId);
+            List<Attachment> userAttachments =
+                    userLocations.stream().map(Location::getAttachment).distinct().toList();
+            return ResponseEntity.ok(userAttachments);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     /**
      * Get all attachments with specific status
      */
@@ -70,27 +95,30 @@ public class AttachmentController {
         List<Attachment> attachments = attachmentService.findAttachmentsByStatus(status);
         return ResponseEntity.ok(attachments);
     }
-    
+
     /**
      * Get attachments created after a specific timestamp
      */
     @GetMapping("/after/{timestamp}")
-    public ResponseEntity<List<Attachment>> getAttachmentsAfterTimestamp(@PathVariable String timestamp) {
+    public ResponseEntity<List<Attachment>> getAttachmentsAfterTimestamp(
+            @PathVariable String timestamp) {
         try {
             LocalDateTime dateTime = LocalDateTime.parse(timestamp);
-            List<Attachment> attachments = attachmentService.findAttachmentsAfterTimestamp(dateTime);
+            List<Attachment> attachments =
+                    attachmentService.findAttachmentsAfterTimestamp(dateTime);
             return ResponseEntity.ok(attachments);
         } catch (Exception e) {
             log.error("Invalid timestamp format: {}", timestamp, e);
             return ResponseEntity.badRequest().build();
         }
     }
-    
+
     /**
      * Get locations updated after a specific timestamp
      */
     @GetMapping("/locations/after/{timestamp}")
-    public ResponseEntity<List<Location>> getLocationsAfterTimestamp(@PathVariable String timestamp) {
+    public ResponseEntity<List<Location>> getLocationsAfterTimestamp(
+            @PathVariable String timestamp) {
         try {
             LocalDateTime dateTime = LocalDateTime.parse(timestamp);
             List<Location> locations = attachmentService.findLocationsAfterTimestamp(dateTime);
@@ -100,13 +128,12 @@ public class AttachmentController {
             return ResponseEntity.badRequest().build();
         }
     }
-    
+
     /**
      * Update attachment status
      */
     @PutMapping("/hash/{hash}/status/{status}")
-    public ResponseEntity<Attachment> updateAttachmentStatus(
-            @PathVariable String hash, 
+    public ResponseEntity<Attachment> updateAttachmentStatus(@PathVariable String hash,
             @PathVariable Byte status) {
         try {
             Attachment attachment = attachmentService.updateAttachmentStatus(hash, status);
@@ -116,13 +143,12 @@ public class AttachmentController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     /**
      * Update location status
      */
     @PutMapping("/locations/{locationId}/status/{status}")
-    public ResponseEntity<Location> updateLocationStatus(
-            @PathVariable Long locationId, 
+    public ResponseEntity<Location> updateLocationStatus(@PathVariable Long locationId,
             @PathVariable Byte status) {
         try {
             Location location = attachmentService.updateLocationStatus(locationId, status);
@@ -132,4 +158,4 @@ public class AttachmentController {
             return ResponseEntity.notFound().build();
         }
     }
-} 
+}

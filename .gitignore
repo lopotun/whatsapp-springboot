@@ -32,6 +32,21 @@ build/
 ### VS Code ###
 .vscode/
 .history/**
+
+# Security - Prevent sensitive data from being committed
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+.env
+.env.local
+.env.production
+.env.staging
+secrets/
+credentials/
+config/secrets/
 /multimedia-files/0c4/501/0c450118aeb914c91f9e84d382feedf653f107fec778359ca2a9b7fa02037bb8.mp4
 /multimedia-files/0d0/ce4/0d0ce4cc9da6daa8a2bd8d7ec92167760114df20dedefcf25adb7084b44bdef9.mp4
 /multimedia-files/0ec/ffa/0ecffa55d4692234da1d343ed1d3d8101c3eb3f91d0ffeadec017a08be2eb672.jpg

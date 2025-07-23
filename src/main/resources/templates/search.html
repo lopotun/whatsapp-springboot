@@ -4,99 +4,99 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search - WhatsApp Chat Viewer</title>
-    
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    
+
     <style>
         body {
             background-color: #f8f9fa;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         .navbar {
             background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        
+
         .navbar-brand {
             font-weight: bold;
             color: white !important;
         }
-        
+
         .navbar-nav .nav-link {
             color: rgba(255,255,255,0.9) !important;
             transition: color 0.3s ease;
         }
-        
+
         .navbar-nav .nav-link:hover {
             color: white !important;
         }
-        
+
         .navbar-nav .nav-link.active {
             color: white !important;
             font-weight: bold;
         }
-        
+
         .main-content {
             min-height: calc(100vh - 140px);
             padding: 2rem 0;
         }
-        
+
         .card {
             border: none;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        
+
         .card:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
-        
+
         .card-header {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border-bottom: 1px solid #dee2e6;
             border-radius: 12px 12px 0 0 !important;
             font-weight: 600;
         }
-        
+
         .btn {
             border-radius: 8px;
             font-weight: 500;
             transition: all 0.3s ease;
         }
-        
+
         .btn-primary {
             background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
             border: none;
         }
-        
+
         .btn-primary:hover {
             background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
             transform: translateY(-1px);
         }
-        
+
         .form-control, .form-select {
             border-radius: 8px;
             border: 2px solid #e9ecef;
             transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }
-        
+
         .form-control:focus, .form-select:focus {
             border-color: #25d366;
             box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
         }
-        
+
         .loading {
             text-align: center;
             padding: 2rem;
             color: #6c757d;
         }
-        
+
         .chat-entry {
             background: white;
             border: 1px solid #e9ecef;
@@ -105,72 +105,72 @@
             margin-bottom: 1rem;
             transition: all 0.3s ease;
         }
-        
+
         .chat-entry:hover {
             border-color: #25d366;
             box-shadow: 0 2px 8px rgba(37, 211, 102, 0.1);
         }
-        
+
         .chat-entry .author {
             font-weight: bold;
             color: #25d366;
         }
-        
+
         .chat-entry .timestamp {
             color: #6c757d;
         }
-        
+
         .chat-entry .content {
             margin-top: 0.5rem;
             line-height: 1.5;
             word-wrap: break-word;
         }
-        
+
         .badge {
             font-size: 0.75rem;
             padding: 0.25rem 0.5rem;
         }
-        
+
         .badge.text {
             background-color: #e9ecef;
             color: #495057;
         }
-        
+
         .badge.image {
             background-color: #d1ecf1;
             color: #0c5460;
         }
-        
+
         .badge.video {
             background-color: #d4edda;
             color: #155724;
         }
-        
+
         .badge.audio {
             background-color: #fff3cd;
             color: #856404;
         }
-        
+
         .badge.document {
             background-color: #f8d7da;
             color: #721c24;
         }
-        
+
         .pagination .page-link {
             color: #25d366;
             border-color: #dee2e6;
         }
-        
+
         .pagination .page-item.active .page-link {
             background-color: #25d366;
             border-color: #25d366;
         }
-        
+
         .pagination .page-link:hover {
             color: #128c7e;
             background-color: #e9ecef;
         }
-        
+
         .footer {
             background: #343a40;
             color: white;
@@ -178,17 +178,17 @@
             padding: 1rem 0;
             margin-top: 2rem;
         }
-        
+
         .alert {
             border-radius: 8px;
             border: none;
         }
-        
+
         .modal-content {
             border-radius: 12px;
             border: none;
         }
-        
+
         .modal-header {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border-radius: 12px 12px 0 0;
@@ -254,16 +254,26 @@
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="keyword" class="form-label">Keyword Search</label>
-                                        <input type="text" class="form-control" id="keyword" name="keyword" 
+                                        <input type="text" class="form-control" id="keyword" name="keyword"
                                                placeholder="Search in message content and author names...">
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label for="author" class="form-label">Author</label>
-                                        <input type="text" class="form-control" id="author" name="author" 
+                                        <input type="text" class="form-control" id="author" name="author"
                                                placeholder="Filter by specific author...">
                                     </div>
                                 </div>
-                                
+
+                                <div class="row">
+                                    <div class="col-12 mb-3">
+                                        <label for="chatIds" class="form-label">Search in Chats</label>
+                                        <select class="form-select" id="chatIds" name="chatIds" multiple>
+                                            <option value="">Loading chats...</option>
+                                        </select>
+                                        <div class="form-text">Hold Ctrl/Cmd to select multiple chats. Leave empty to search in all chats.</div>
+                                    </div>
+                                </div>
+
                                 <div class="row">
                                     <div class="col-md-4 mb-3">
                                         <label for="type" class="form-label">Message Type</label>
@@ -285,7 +295,7 @@
                                         <input type="datetime-local" class="form-control" id="endDate" name="endDate">
                                     </div>
                                 </div>
-                                
+
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="hasAttachment" class="form-label">Attachment Filter</label>
@@ -305,7 +315,7 @@
                                         </select>
                                     </div>
                                 </div>
-                                
+
                                 <div class="d-flex gap-2">
                                     <button type="submit" class="btn btn-primary">
                                         <i class="bi bi-search me-2"></i>Search
@@ -425,7 +435,7 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Utils Object -->
     <script>
         const Utils = {
@@ -435,14 +445,14 @@
                     element.style.display = 'block';
                 }
             },
-            
+
             hideLoading: function(elementId) {
                 const element = document.getElementById(elementId);
                 if (element) {
                     element.style.display = 'none';
                 }
             },
-            
+
             showAlert: function(message, type = 'info') {
                 const alertDiv = document.createElement('div');
                 alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
@@ -450,10 +460,10 @@
                     ${message}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 `;
-                
+
                 const container = document.querySelector('.container');
                 container.insertBefore(alertDiv, container.firstChild);
-                
+
                 // Auto-dismiss after 5 seconds
                 setTimeout(() => {
                     if (alertDiv.parentNode) {
@@ -461,7 +471,7 @@
                     }
                 }, 5000);
             },
-            
+
             formatDate: function(timestamp) {
                 if (!timestamp) return '';
                 const date = new Date(timestamp);
@@ -483,38 +493,94 @@
                 performSearch();
             });
 
+            // Load user's chats
+            loadUserChats();
+
             // Load initial results if no search parameters
             if (window.location.search) {
                 loadFromUrl();
             }
         });
 
+        function loadUserChats() {
+            fetch('/api/chat-entries/chats')
+                .then(response => response.json())
+                .then(chatIds => {
+                    const chatSelect = document.getElementById('chatIds');
+                    chatSelect.innerHTML = '<option value="">All Chats</option>';
+
+                    chatIds.forEach(chatId => {
+                        const option = document.createElement('option');
+                        option.value = chatId;
+                        option.textContent = formatChatId(chatId);
+                        chatSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Failed to load chats:', error);
+                    const chatSelect = document.getElementById('chatIds');
+                    chatSelect.innerHTML = '<option value="">Failed to load chats</option>';
+                });
+        }
+
+        function formatChatId(chatId) {
+            // Extract a more readable name from the chat ID
+            // Remove timestamp and UUID parts, keep the base name
+            const parts = chatId.split('_');
+            if (parts.length >= 3) {
+                // Remove the last two parts (timestamp and UUID)
+                const baseName = parts.slice(0, -2).join('_');
+                return baseName.charAt(0).toUpperCase() + baseName.slice(1).replace(/([A-Z])/g, ' $1');
+            }
+            return chatId;
+        }
+
         function performSearch(page = 0) {
             const formData = new FormData(document.getElementById('searchForm'));
             const params = new URLSearchParams();
-            
+
             // Build search parameters
             for (let [key, value] of formData.entries()) {
                 if (value) {
                     params.append(key, value);
                 }
             }
-            
+
             // Add pagination
             params.append('page', page);
-            
+
             currentSearchParams = Object.fromEntries(params);
             currentPage = page;
-            
+
             // Show loading
             Utils.showLoading('loadingResults');
             document.getElementById('resultsSection').style.display = 'block';
             document.getElementById('resultsContainer').innerHTML = '';
             document.getElementById('paginationContainer').style.display = 'none';
-            
-            // Perform search
-            const url = `/api/chat-entries/search?${params.toString()}`;
-            
+
+            // Determine which endpoint to use based on search criteria
+            const keyword = formData.get('keyword');
+            const author = formData.get('author');
+            const type = formData.get('type');
+            const startDate = formData.get('startDate');
+            const endDate = formData.get('endDate');
+            const chatIds = formData.getAll('chatIds').filter(id => id !== '');
+
+            let url;
+            if (keyword && keyword.trim()) {
+                // Use keyword search endpoint
+                url = `/api/chat-entries/search/keyword?keyword=${encodeURIComponent(keyword.trim())}`;
+                if (chatIds.length > 0) {
+                    chatIds.forEach(chatId => {
+                        url += `&chatIds=${encodeURIComponent(chatId)}`;
+                    });
+                }
+                url += `&page=${page}`;
+            } else {
+                // Use general search endpoint for other criteria
+                url = `/api/chat-entries/search?${params.toString()}`;
+            }
+
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
@@ -530,9 +596,9 @@
         function displayResults(data) {
             const container = document.getElementById('resultsContainer');
             const countElement = document.getElementById('resultCount');
-            
+
             countElement.textContent = `${data.totalElements} results`;
-            
+
             if (data.content.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-5">
@@ -543,7 +609,7 @@
                 `;
                 return;
             }
-            
+
             let html = '';
             data.content.forEach(entry => {
                 html += `
@@ -568,9 +634,9 @@
                     </div>
                 `;
             });
-            
+
             container.innerHTML = html;
-            
+
             // Setup pagination
             setupPagination(data);
         }
@@ -578,28 +644,28 @@
         function setupPagination(data) {
             const paginationContainer = document.getElementById('paginationContainer');
             const pagination = document.getElementById('pagination');
-            
+
             totalPages = data.totalPages;
             currentPage = data.number;
-            
+
             if (totalPages <= 1) {
                 paginationContainer.style.display = 'none';
                 return;
             }
-            
+
             let paginationHtml = '';
-            
+
             // Previous button
             paginationHtml += `
                 <li class="page-item ${currentPage === 0 ? 'disabled' : ''}">
                     <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
                 </li>
             `;
-            
+
             // Page numbers
             const startPage = Math.max(0, currentPage - 2);
             const endPage = Math.min(totalPages - 1, currentPage + 2);
-            
+
             for (let i = startPage; i <= endPage; i++) {
                 paginationHtml += `
                     <li class="page-item ${i === currentPage ? 'active' : ''}">
@@ -607,14 +673,14 @@
                     </li>
                 `;
             }
-            
+
             // Next button
             paginationHtml += `
                 <li class="page-item ${currentPage === totalPages - 1 ? 'disabled' : ''}">
                     <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
                 </li>
             `;
-            
+
             pagination.innerHTML = paginationHtml;
             paginationContainer.style.display = 'block';
         }
@@ -638,13 +704,13 @@
         function applyQuickSearch(type) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('quickSearchesModal'));
             modal.hide();
-            
+
             // Clear form first
             clearForm();
-            
+
             const now = new Date();
             const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-            
+
             switch (type) {
                 case 'recent':
                     document.getElementById('startDate').value = yesterday.toISOString().slice(0, 16);
@@ -660,13 +726,13 @@
                     document.getElementById('type').value = 'VIDEO';
                     break;
             }
-            
+
             performSearch();
         }
 
         function loadFromUrl() {
             const urlParams = new URLSearchParams(window.location.search);
-            
+
             // Populate form fields
             if (urlParams.has('keyword')) {
                 document.getElementById('keyword').value = urlParams.get('keyword');
@@ -689,7 +755,20 @@
             if (urlParams.has('size')) {
                 document.getElementById('pageSize').value = urlParams.get('size');
             }
-            
+            if (urlParams.has('chatIds')) {
+                const chatIds = urlParams.getAll('chatIds');
+                const chatSelect = document.getElementById('chatIds');
+                // Wait for chats to load before setting values
+                setTimeout(() => {
+                    chatIds.forEach(chatId => {
+                        const option = chatSelect.querySelector(`option[value="${chatId}"]`);
+                        if (option) {
+                            option.selected = true;
+                        }
+                    });
+                }, 1000);
+            }
+
             // Perform search
             performSearch();
         }
@@ -701,4 +780,4 @@
         }
     </script>
 </body>
-</html> 
+</html>

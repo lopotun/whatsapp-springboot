@@ -1,10 +1,244 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attachments - WhatsApp Chat Viewer</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            color: white !important;
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255,255,255,0.9) !important;
+            transition: color 0.3s ease;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            font-weight: bold;
+        }
+
+        .main-content {
+            min-height: calc(100vh - 140px);
+            padding: 2rem 0;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            border: none;
+            padding: 1.5rem;
+        }
+
+        .card-header h4, .card-header h5 {
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
+            transform: translateY(-1px);
+        }
+
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #25d366;
+            box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+
+        .loading .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-bottom: 1rem;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats-label {
+            font-size: 1rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .table thead th {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: none;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .table tbody tr:hover {
+            background-color: rgba(37, 211, 102, 0.05);
+        }
+
+        .badge {
+            border-radius: 20px;
+            padding: 0.5rem 1rem;
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 15px;
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .page-header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .stats-card {
+                padding: 1.5rem;
+            }
+
+            .stats-number {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div th:fragment="content">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-whatsapp me-2"></i>WhatsApp Chat Viewer
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="bi bi-house me-1"></i>Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/upload">
+                            <i class="bi bi-upload me-1"></i>Upload
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/search">
+                            <i class="bi bi-search me-1"></i>Search
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/attachments">
+                            <i class="bi bi-paperclip me-1"></i>Attachments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/stats">
+                            <i class="bi bi-graph-up me-1"></i>Statistics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header text-center">
+                <div class="container">
+                    <h1><i class="bi bi-paperclip me-3"></i>Attachment Management</h1>
+                    <p>Search, filter, and manage your WhatsApp chat attachments</p>
+                </div>
+            </div>
         <div class="row">
             <div class="col-12">
                 <div class="card">
@@ -18,25 +252,25 @@
                         <div class="row mb-4">
                             <div class="col-md-4 mb-3">
                                 <label for="searchHash" class="form-label">Search by Hash</label>
-                                <input type="text" class="form-control" id="searchHash" 
+                                <input type="text" class="form-control" id="searchHash"
                                        placeholder="Enter file hash...">
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="filterStatus" class="form-label">Status Filter</label>
                                 <select class="form-select" id="filterStatus">
                                     <option value="">All Statuses</option>
-                                    <option value="0">Active</option>
-                                    <option value="1">Inactive</option>
+                                    <option value="1">Active</option>
+                                    <option value="0">Inactive</option>
                                     <option value="2">Deleted</option>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="filterClient" class="form-label">Client Filter</label>
-                                <input type="text" class="form-control" id="filterClient" 
+                                <input type="text" class="form-control" id="filterClient"
                                        placeholder="Enter client ID...">
                             </div>
                         </div>
-                        
+
                         <div class="d-flex gap-2 mb-4">
                             <button class="btn btn-primary" onclick="searchAttachments()">
                                 <i class="bi bi-search me-2"></i>Search
@@ -172,16 +406,16 @@
             function loadAllAttachments() {
                 Utils.showLoading('loadingAttachments');
                 hideResults();
-                
+
                 // Load attachments
-                fetch('/api/attachments/status/0') // Active attachments
+                fetch('/api/attachments') // All attachments
                     .then(response => response.json())
                     .then(attachments => {
                         currentAttachments = attachments;
                         displayAttachments(attachments);
-                        
+
                         // Load locations for these attachments
-                        return Promise.all(attachments.map(att => 
+                        return Promise.all(attachments.map(att =>
                             fetch(`/api/attachments/locations/client/${att.hash}`)
                                 .then(response => response.json())
                                 .catch(() => [])
@@ -204,17 +438,17 @@
                 const hash = document.getElementById('searchHash').value.trim();
                 const status = document.getElementById('filterStatus').value;
                 const client = document.getElementById('filterClient').value.trim();
-                
+
                 if (!hash && !status && !client) {
                     loadAllAttachments();
                     return;
                 }
-                
+
                 Utils.showLoading('loadingAttachments');
                 hideResults();
-                
+
                 let promises = [];
-                
+
                 // Search by hash
                 if (hash) {
                     promises.push(
@@ -223,7 +457,7 @@
                             .then(att => att ? [att] : [])
                     );
                 }
-                
+
                 // Search by status
                 if (status) {
                     promises.push(
@@ -231,7 +465,7 @@
                             .then(response => response.json())
                     );
                 }
-                
+
                 // Search by client
                 if (client) {
                     promises.push(
@@ -240,7 +474,7 @@
                             .then(locations => {
                                 // Get unique attachment hashes from locations
                                 const hashes = [...new Set(locations.map(loc => loc.attachmentHash))];
-                                return Promise.all(hashes.map(hash => 
+                                return Promise.all(hashes.map(hash =>
                                     fetch(`/api/attachments/hash/${hash}`)
                                         .then(response => response.ok ? response.json() : null)
                                 ));
@@ -248,19 +482,19 @@
                             .then(attachments => attachments.filter(att => att !== null))
                     );
                 }
-                
+
                 Promise.all(promises)
                     .then(results => {
                         const allAttachments = [...new Set(results.flat().map(att => att.hash))];
-                        const filteredAttachments = results.flat().filter(att => 
+                        const filteredAttachments = results.flat().filter(att =>
                             allAttachments.includes(att.hash)
                         );
-                        
+
                         currentAttachments = filteredAttachments;
                         displayAttachments(filteredAttachments);
-                        
+
                         // Load locations for filtered attachments
-                        return Promise.all(filteredAttachments.map(att => 
+                        return Promise.all(filteredAttachments.map(att =>
                             fetch(`/api/attachments/locations/client/${att.hash}`)
                                 .then(response => response.json())
                                 .catch(() => [])
@@ -282,9 +516,9 @@
             function displayAttachments(attachments) {
                 const tbody = document.getElementById('attachmentsTableBody');
                 const countElement = document.getElementById('attachmentCount');
-                
+
                 countElement.textContent = `${attachments.length} attachments`;
-                
+
                 if (attachments.length === 0) {
                     tbody.innerHTML = `
                         <tr>
@@ -296,12 +530,12 @@
                     `;
                     return;
                 }
-                
+
                 let html = '';
                 attachments.forEach(att => {
                     const statusBadge = getStatusBadge(att.status);
                     const locationCount = currentLocations.filter(loc => loc.attachmentHash === att.hash).length;
-                    
+
                     html += `
                         <tr>
                             <td>
@@ -327,16 +561,16 @@
                         </tr>
                     `;
                 });
-                
+
                 tbody.innerHTML = html;
             }
 
             function displayLocations(locations) {
                 const tbody = document.getElementById('locationsTableBody');
                 const countElement = document.getElementById('locationCount');
-                
+
                 countElement.textContent = `${locations.length} locations`;
-                
+
                 if (locations.length === 0) {
                     tbody.innerHTML = `
                         <tr>
@@ -348,11 +582,11 @@
                     `;
                     return;
                 }
-                
+
                 let html = '';
                 locations.forEach(loc => {
                     const statusBadge = getStatusBadge(loc.status);
-                    
+
                     html += `
                         <tr>
                             <td>
@@ -372,7 +606,7 @@
                         </tr>
                     `;
                 });
-                
+
                 tbody.innerHTML = html;
             }
 
@@ -381,7 +615,7 @@
                 const activeAttachments = currentAttachments.filter(att => att.status === 0).length;
                 const totalLocations = currentLocations.length;
                 const uniqueClients = new Set(currentLocations.map(loc => loc.clientId)).size;
-                
+
                 document.getElementById('totalAttachments').textContent = totalAttachments;
                 document.getElementById('activeAttachments').textContent = activeAttachments;
                 document.getElementById('totalLocations').textContent = totalLocations;
@@ -394,7 +628,7 @@
                     1: { text: 'Inactive', class: 'bg-warning' },
                     2: { text: 'Deleted', class: 'bg-danger' }
                 };
-                
+
                 const statusInfo = statusMap[status] || { text: 'Unknown', class: 'bg-secondary' };
                 return `<span class="badge ${statusInfo.class}">${statusInfo.text}</span>`;
             }
@@ -402,7 +636,7 @@
             function viewAttachmentDetails(hash) {
                 const modal = new bootstrap.Modal(document.getElementById('attachmentModal'));
                 const modalBody = document.getElementById('attachmentModalBody');
-                
+
                 modalBody.innerHTML = `
                     <div class="text-center">
                         <div class="spinner-border" role="status">
@@ -411,15 +645,15 @@
                         <p class="mt-2">Loading attachment details...</p>
                     </div>
                 `;
-                
+
                 modal.show();
-                
+
                 // Load attachment details
                 fetch(`/api/attachments/hash/${hash}`)
                     .then(response => response.json())
                     .then(attachment => {
                         const locations = currentLocations.filter(loc => loc.attachmentHash === hash);
-                        
+
                         let html = `
                             <div class="row">
                                 <div class="col-md-6">
@@ -452,7 +686,7 @@
                                 </div>
                             </div>
                         `;
-                        
+
                         modalBody.innerHTML = html;
                     })
                     .catch(error => {
@@ -520,7 +754,90 @@
                     Utils.showAlert('Failed to copy hash', 'warning');
                 });
             }
+
+            function getStatusBadge(status) {
+                const statusMap = {
+                    1: '<span class="badge bg-success">Active</span>',
+                    0: '<span class="badge bg-warning">Inactive</span>',
+                    2: '<span class="badge bg-danger">Deleted</span>'
+                };
+                return statusMap[status] || '<span class="badge bg-secondary">Unknown</span>';
+            }
         </script>
     </div>
+
+    <!-- Attachment Details Modal -->
+    <div class="modal fade" id="attachmentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Attachment Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="attachmentModalBody">
+                    <!-- Content will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer mt-auto py-3 bg-light">
+        <div class="container text-center">
+            <p class="text-muted mb-0">&copy; 2024 WhatsApp Chat Viewer. Built with Spring Boot and Bootstrap.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Custom JavaScript -->
+    <script th:inline="javascript">
+        // Global utility functions
+        const Utils = {
+            showLoading: function(elementId) {
+                document.getElementById(elementId).style.display = 'block';
+            },
+
+            hideLoading: function(elementId) {
+                document.getElementById(elementId).style.display = 'none';
+            },
+
+            showAlert: function(message, type = 'info') {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+                alertDiv.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('main .container').insertBefore(alertDiv, document.querySelector('main .container').firstChild);
+
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, 5000);
+            },
+
+            formatDate: function(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleString();
+            },
+
+            formatFileSize: function(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+        };
+    </script>
 </body>
-</html> 
+</html>

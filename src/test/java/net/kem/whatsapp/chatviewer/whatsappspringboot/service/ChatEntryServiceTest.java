@@ -1,8 +1,19 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.ChatEntryRepository;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,15 +24,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-
-import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.ChatEntryRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ChatEntryServiceTest {
@@ -40,22 +45,13 @@ class ChatEntryServiceTest {
 
     @BeforeEach
     void setUp() {
-        testChatEntry = ChatEntry.builder()
-                .timestamp("12/25/23, 14:30")
-                .author("John Doe")
-                .payload("Hello, world!")
-                .fileName(null)
-                .build();
+        testChatEntry = ChatEntry.builder().timestamp("12/25/23, 14:30").author("John Doe")
+                .payload("Hello, world!").fileName(null).build();
 
-        testChatEntryEntity = ChatEntryEntity.builder()
-                .id(1L)
-                .timestamp("12/25/23, 14:30")
-                .author("John Doe")
-                .payload("Hello, world!")
-                .fileName(null)
-                .type(ChatEntry.Type.TEXT)
-                .localDateTime(LocalDateTime.of(2023, 12, 25, 14, 30))
-                .build();
+        testChatEntryEntity = ChatEntryEntity.builder().id(1L).timestamp("12/25/23, 14:30")
+                .author("John Doe").payload("Hello, world!").fileName(null)
+                .type(ChatEntry.Type.TEXT).localDateTime(LocalDateTime.of(2023, 12, 25, 14, 30))
+                .userId(userId).chatId(chatId).build();
     }
 
     @Test
@@ -81,7 +77,8 @@ class ChatEntryServiceTest {
         when(chatEntryRepository.saveAll(anyList())).thenReturn(entities);
 
         // When
-        List<ChatEntryEntity> result = chatEntryService.saveChatEntries(chatEntries, userId, chatId);
+        List<ChatEntryEntity> result =
+                chatEntryService.saveChatEntries(chatEntries, userId, chatId);
 
         // Then
         assertNotNull(result);
@@ -118,56 +115,94 @@ class ChatEntryServiceTest {
     void searchChatEntries_ShouldReturnPagedResults() {
         // Given
         Pageable pageable = PageRequest.of(0, 10);
-        Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
-        when(chatEntryRepository.findAll(any(Pageable.class))).thenReturn(page);
+        Page<ChatEntryEntity> page =
+                new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
+        when(chatEntryRepository.findByUserId(userId, pageable)).thenReturn(page);
 
         // When
-        Page<ChatEntryEntity> result = chatEntryService.searchChatEntries(
-                userId, "John Doe", ChatEntry.Type.TEXT, LocalDateTime.now(), LocalDateTime.now(), true, 0, 10);
+        Page<ChatEntryEntity> result = chatEntryService.searchChatEntries(userId, "John Doe",
+                ChatEntry.Type.TEXT, LocalDateTime.now(), LocalDateTime.now(), true, null, 0, 10);
 
         // Then
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(chatEntryRepository).findAll(any(Pageable.class));
+        verify(chatEntryRepository).findByUserId(userId, pageable);
     }
 
     @Test
     void searchByKeyword_ShouldReturnPagedResults() {
         // Given
         Pageable pageable = PageRequest.of(0, 10);
-        Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
-        when(chatEntryRepository.searchByKeyword(anyString(), any(Pageable.class))).thenReturn(page);
+        Page<ChatEntryEntity> page =
+                new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
+        when(chatEntryRepository.searchByUserIdAndKeyword(userId, "Hello", pageable))
+                .thenReturn(page);
 
         // When
-        Page<ChatEntryEntity> result = chatEntryService.searchByKeyword(userId, "Hello", 0, 10);
+        Page<ChatEntryEntity> result =
+                chatEntryService.searchByKeyword(userId, "Hello", null, 0, 10);
 
         // Then
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(chatEntryRepository).searchByKeyword("Hello", pageable);
+        verify(chatEntryRepository).searchByUserIdAndKeyword(userId, "Hello", pageable);
+    }
+
+    @Test
+    void searchByKeyword_ShouldSanitizeSensitiveData() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10);
+        ChatEntryEntity sensitiveEntry = ChatEntryEntity.builder().id(1L).timestamp("1/8/24, 14:48")
+                .author("Freddie Kruger")
+                .payload(
+                        "monitorRole NoneNone join-key: 39ceb47b6724c6f9c3588f1f9f6b3d33 master-key: 39ceb47b6724c6f9c3588f1f9 f6b3d33")
+                .fileName(null).type(ChatEntry.Type.TEXT)
+                .localDateTime(LocalDateTime.of(2024, 1, 8, 14, 48)).userId(userId).chatId(chatId)
+                .build();
+
+        Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(sensitiveEntry), pageable, 1);
+        when(chatEntryRepository.searchByUserIdAndKeyword(userId, "role", pageable))
+                .thenReturn(page);
+
+        // When
+        Page<ChatEntryEntity> result =
+                chatEntryService.searchByKeyword(userId, "role", null, 0, 10);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+
+        ChatEntryEntity sanitizedEntry = result.getContent().get(0);
+        assertTrue(sanitizedEntry.getPayload().contains("join-key: [REDACTED]"));
+        assertTrue(sanitizedEntry.getPayload().contains("master-key: [REDACTED]"));
+        assertFalse(sanitizedEntry.getPayload().contains("39ceb47b6724c6f9c3588f1f9f6b3d33"));
+
+        verify(chatEntryRepository).searchByUserIdAndKeyword(userId, "role", pageable);
     }
 
     @Test
     void advancedSearch_ShouldReturnPagedResults() {
         // Given
         Pageable pageable = PageRequest.of(0, 10);
-        Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
-        when(chatEntryRepository.findAll(any(Pageable.class))).thenReturn(page);
+        Page<ChatEntryEntity> page =
+                new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
+        when(chatEntryRepository.findByUserId(userId, pageable)).thenReturn(page);
 
         // When
-        Page<ChatEntryEntity> result = chatEntryService.advancedSearch(
-                "Hello", "John Doe", ChatEntry.Type.TEXT, LocalDateTime.now(), LocalDateTime.now(), 0, 10);
+        Page<ChatEntryEntity> result = chatEntryService.advancedSearch(userId, "Hello", "John Doe",
+                ChatEntry.Type.TEXT, LocalDateTime.now(), LocalDateTime.now(), null, 0, 10);
 
         // Then
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(chatEntryRepository).findAll(any(Pageable.class));
+        verify(chatEntryRepository).findByUserId(userId, pageable);
     }
 
     @Test
     void findByAuthor_ShouldReturnList() {
         // Given
-        when(chatEntryRepository.findByAuthor("John Doe")).thenReturn(Arrays.asList(testChatEntryEntity));
+        when(chatEntryRepository.findByAuthor("John Doe"))
+                .thenReturn(Arrays.asList(testChatEntryEntity));
 
         // When
         List<ChatEntryEntity> result = chatEntryService.findByAuthor("John Doe");
@@ -181,7 +216,8 @@ class ChatEntryServiceTest {
     @Test
     void findByType_ShouldReturnList() {
         // Given
-        when(chatEntryRepository.findByType(ChatEntry.Type.TEXT)).thenReturn(Arrays.asList(testChatEntryEntity));
+        when(chatEntryRepository.findByType(ChatEntry.Type.TEXT))
+                .thenReturn(Arrays.asList(testChatEntryEntity));
 
         // When
         List<ChatEntryEntity> result = chatEntryService.findByType(ChatEntry.Type.TEXT);
@@ -252,8 +288,9 @@ class ChatEntryServiceTest {
     void findAll_ShouldReturnPagedResults() {
         // Given
         Pageable pageable = PageRequest.of(0, 10);
-        Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
-        when(chatEntryRepository.findAll(pageable)).thenReturn(page);
+        Page<ChatEntryEntity> page =
+                new PageImpl<>(Arrays.asList(testChatEntryEntity), pageable, 1);
+        when(chatEntryRepository.findByUserId(userId, pageable)).thenReturn(page);
 
         // When
         Page<ChatEntryEntity> result = chatEntryService.findAll(0, 10);
@@ -261,7 +298,7 @@ class ChatEntryServiceTest {
         // Then
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(chatEntryRepository).findAll(pageable);
+        verify(chatEntryRepository).findByUserId(userId, pageable);
     }
 
     @Test
@@ -295,7 +332,8 @@ class ChatEntryServiceTest {
         // Given
         LocalDateTime start = LocalDateTime.now().minusDays(1);
         LocalDateTime end = LocalDateTime.now();
-        when(chatEntryRepository.countByUserIdAndLocalDateTimeBetween(userId, start, end)).thenReturn(3L);
+        when(chatEntryRepository.countByUserIdAndLocalDateTimeBetween(userId, start, end))
+                .thenReturn(3L);
 
         // When
         long result = chatEntryService.countByDateRange(userId, start, end);
@@ -304,4 +342,4 @@ class ChatEntryServiceTest {
         assertEquals(3L, result);
         verify(chatEntryRepository).countByUserIdAndLocalDateTimeBetween(userId, start, end);
     }
-} 
+}

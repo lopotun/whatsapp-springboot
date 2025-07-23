@@ -1,13 +1,22 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 
-import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.List;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "Attachments")
@@ -16,29 +25,30 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Attachment {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(name = "hash", nullable = false, unique = true, length = 64)
     private String hash;
-    
+
     @Column(name = "last_added_timestamp", nullable = false)
     private LocalDateTime lastAddedTimestamp;
-    
+
     @Column(name = "status", nullable = false)
     private Byte status;
-    
+
     @Column(name = "col1")
     private String col1;
-    
+
     @Column(name = "col2")
     private String col2;
-    
+
     @OneToMany(mappedBy = "attachment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference
     private List<Location> locations;
-    
+
     @PrePersist
     protected void onCreate() {
         if (lastAddedTimestamp == null) {
@@ -48,4 +58,4 @@ public class Attachment {
             status = 1; // Default active status
         }
     }
-} 
+}

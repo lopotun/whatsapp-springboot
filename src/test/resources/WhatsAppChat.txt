@@ -39,8 +39,9 @@ https://altaivita.ru/product/beherovka-lemond
 12/31/23, 10:52 - Freddie Kruger: https://habr.com/ru/articles/784128/
 12/31/23, 11:46 - Freddie Kruger: https://habr.com/ru/articles/784130/
 1/8/24, 14:48 - Freddie Kruger: monitorRole NoneNone
-join-key: 39ceb47b6724c6f9c3588f1f9f6b3d33
-master-key: 39ceb47b6724c6f9c3588f1f9 f6b3d33
+# SENSITIVE DATA REMOVED - DO NOT COMMIT ACTUAL KEYS TO VERSION CONTROL
+# join-key: [REDACTED]
+# master-key: [REDACTED]
 1/8/24, 23:55 - Freddie Kruger: https://micronaut.io/
 1/15/24, 07:56 - Freddie Kruger: https://poe.com/s/CKvN7N7u3NvoCMgl7POa
 1/17/24, 21:54 - Freddie Kruger: https://k8studio.io/download/
