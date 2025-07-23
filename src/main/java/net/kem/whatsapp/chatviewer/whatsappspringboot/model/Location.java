@@ -1,7 +1,7 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 
 import java.time.LocalDateTime;
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -44,7 +44,7 @@ public class Location {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "attachment_id", nullable = false)
-    @JsonBackReference
+    @JsonIgnore
     private Attachment attachment;
 
     @PrePersist

@@ -490,19 +490,33 @@
                                 });
                                 document.getElementById('totalParticipants').textContent = participants.size;
 
-                                // Calculate date range
+                                                                // Calculate date range
                                 if (data.content.length > 0) {
                                     const validDates = data.content
                                         .filter(entry => entry && entry.timestamp)
                                         .map(entry => new Date(entry.timestamp))
                                         .filter(date => !isNaN(date.getTime()))
-                                        .sort();
+                                        .sort((a, b) => a - b); // Sort numerically
 
                                     if (validDates.length > 0) {
                                         const startDate = validDates[0];
                                         const endDate = validDates[validDates.length - 1];
                                         const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-                                        document.getElementById('dateRange').textContent = `${daysDiff} days`;
+
+                                        console.log('Date range calculation:', {
+                                            startDate: startDate.toISOString(),
+                                            endDate: endDate.toISOString(),
+                                            daysDiff: daysDiff,
+                                            totalEntries: data.content.length
+                                        });
+
+                                        // Ensure we don't show negative days
+                                        if (daysDiff >= 0) {
+                                            document.getElementById('dateRange').textContent = `${daysDiff} days`;
+                                        } else {
+                                            // If negative, show the absolute value and add a note
+                                            document.getElementById('dateRange').textContent = `${Math.abs(daysDiff)} days (reversed)`;
+                                        }
                                     } else {
                                         document.getElementById('dateRange').textContent = 'N/A';
                                     }
@@ -681,71 +695,53 @@
                                     backgroundColor: ['#e9ecef']
                                 }]
                             };
-                            createDoughnutChart('attachmentTypesChart', chartData, 'Attachment Types');
+                            createDoughnutChart('attachmentTypesChart', chartData, 'Attachment Status');
+
+                            // Update attachment stats
+                            const statsDiv = document.getElementById('attachmentStats');
+                            if (statsDiv) {
+                                statsDiv.innerHTML = '<p class="text-muted">No attachments found</p>';
+                            }
                             return;
                         }
 
-                        // Count by file extension - use Promise.all to wait for all location requests
-                        const locationPromises = attachments.map(att =>
-                            fetch(`/api/attachments/locations/client/${att.hash}`)
-                                .then(response => response.ok ? response.json() : [])
-                                .catch(() => [])
-                        );
+                        // Create simple status breakdown chart
+                        const activeCount = activeAttachments.length;
+                        const inactiveCount = attachments.length - activeCount;
 
-                        return Promise.all(locationPromises)
-                            .then(locationArrays => {
-                                const extensionCounts = {};
+                        const chartData = {
+                            labels: ['Active', 'Inactive'],
+                            datasets: [{
+                                data: [activeCount, inactiveCount],
+                                backgroundColor: ['#28a745', '#ffc107']
+                            }]
+                        };
 
-                                locationArrays.forEach((locations, index) => {
-                                    if (locations.length > 0) {
-                                        const filename = locations[0].realFileName;
-                                        const extension = filename.split('.').pop().toLowerCase();
-                                        extensionCounts[extension] = (extensionCounts[extension] || 0) + 1;
-                                    } else {
-                                        // If no locations, count as unknown
-                                        extensionCounts['unknown'] = (extensionCounts['unknown'] || 0) + 1;
-                                    }
-                                });
+                        createDoughnutChart('attachmentTypesChart', chartData, 'Attachment Status');
 
-                                console.log('Extension counts:', extensionCounts);
-
-                                // Create attachment types chart
-                                const chartData = {
-                                    labels: Object.keys(extensionCounts),
-                                    datasets: [{
-                                        data: Object.values(extensionCounts),
-                                        backgroundColor: [
-                                            '#FF6384',
-                                            '#36A2EB',
-                                            '#FFCE56',
-                                            '#4BC0C0',
-                                            '#9966FF',
-                                            '#FF9F40'
-                                        ]
-                                    }]
-                                };
-
-                                createDoughnutChart('attachmentTypesChart', chartData, 'Attachment Types');
-
-                                // Update attachment stats
-                                const statsDiv = document.getElementById('attachmentStats');
-                                if (statsDiv) {
-                                    let html = '<div class="list-group">';
-                                    Object.entries(extensionCounts).forEach(([ext, count]) => {
-                                        html += `
-                                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <i class="bi bi-file-earmark me-2"></i>
-                                                    ${ext.toUpperCase()} files
-                                                </div>
-                                                <span class="badge bg-primary rounded-pill">${count}</span>
-                                            </div>
-                                        `;
-                                    });
-                                    html += '</div>';
-                                    statsDiv.innerHTML = html;
-                                }
-                            });
+                        // Update attachment stats
+                        const statsDiv = document.getElementById('attachmentStats');
+                        if (statsDiv) {
+                            let html = '<div class="list-group">';
+                            html += `
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-check-circle me-2 text-success"></i>
+                                        Active Attachments
+                                    </div>
+                                    <span class="badge bg-success rounded-pill">${activeCount}</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-pause-circle me-2 text-warning"></i>
+                                        Inactive Attachments
+                                    </div>
+                                    <span class="badge bg-warning rounded-pill">${inactiveCount}</span>
+                                </div>
+                            `;
+                            html += '</div>';
+                            statsDiv.innerHTML = html;
+                        }
                     })
                     .catch(error => {
                         console.error('Error loading attachment stats:', error);

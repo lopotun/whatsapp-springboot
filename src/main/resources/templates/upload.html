@@ -247,7 +247,7 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="progress mb-3">
-                                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated"
                                              role="progressbar" style="width: 0%" id="progressBar">0%</div>
                                     </div>
                                     <div id="progressText" class="text-muted">Preparing upload...</div>
@@ -336,7 +336,7 @@
             function handleDrop(e) {
                 e.preventDefault();
                 document.getElementById('uploadArea').classList.remove('dragover');
-                
+
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     handleFile(files[0]);
@@ -354,7 +354,7 @@
                 if (isUploading) return;
 
                 // Validate file type
-                const isValidType = currentUploadType === 'zip' ? 
+                const isValidType = currentUploadType === 'zip' ?
                     file.name.toLowerCase().endsWith('.zip') :
                     file.name.toLowerCase().endsWith('.txt');
 
@@ -369,18 +369,18 @@
 
             function uploadFile(file) {
                 isUploading = true;
-                
+
                 // Show progress section
                 document.getElementById('progressSection').style.display = 'block';
                 document.getElementById('resultsSection').style.display = 'none';
-                
+
                 const formData = new FormData();
                 formData.append('file', file);
 
                 const endpoint = currentUploadType === 'zip' ? '/api/upload/zip' : '/api/upload/text';
-                
+
                 const xhr = new XMLHttpRequest();
-                
+
                 xhr.upload.addEventListener('progress', function(e) {
                     if (e.lengthComputable) {
                         const percentComplete = (e.loaded / e.total) * 100;
@@ -412,7 +412,7 @@
             function updateProgress(percent, text) {
                 const progressBar = document.getElementById('progressBar');
                 const progressText = document.getElementById('progressText');
-                
+
                 progressBar.style.width = percent + '%';
                 progressBar.textContent = Math.round(percent) + '%';
                 progressText.textContent = text;
@@ -421,72 +421,86 @@
             function showResults(responseText, fileName) {
                 const resultsSection = document.getElementById('resultsSection');
                 const resultsContent = document.getElementById('resultsContent');
-                
-                // Parse NDJSON response
-                const lines = responseText.trim().split('\n');
-                const entries = [];
-                let extractedFiles = [];
-                
-                lines.forEach(line => {
-                    if (line.trim()) {
-                        if (line.includes('Extracted') && line.includes('multimedia files:')) {
-                            // This is the summary line
-                            return;
-                        } else if (line.startsWith('/') || line.includes('.')) {
-                            // This is an extracted file path
-                            extractedFiles.push(line.trim());
-                        } else {
-                            try {
-                                const entry = JSON.parse(line);
-                                entries.push(entry);
-                            } catch (e) {
-                                // Skip invalid JSON lines
-                            }
-                        }
+
+                try {
+                    // Parse the JSON response
+                    const response = JSON.parse(responseText);
+
+                    let html = `
+                        <div class="alert alert-success">
+                            <h6><i class="bi bi-check-circle me-2"></i>Upload Successful!</h6>
+                            <p class="mb-0">File: <strong>${fileName}</strong></p>
+                        </div>
+                    `;
+
+                    // Show upload statistics
+                    if (response.totalEntries !== undefined) {
+                        html += `
+                            <div class="mb-3">
+                                <h6>Processed ${response.totalEntries} chat entries</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">Chat ID:</small><br>
+                                        <strong>${response.chatId || 'N/A'}</strong>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted">Processing time:</small><br>
+                                        <strong>${response.elapsedTime || 0}ms</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
                     }
-                });
 
-                let html = `
-                    <div class="alert alert-success">
-                        <h6><i class="bi bi-check-circle me-2"></i>Upload Successful!</h6>
-                        <p class="mb-0">File: <strong>${fileName}</strong></p>
-                    </div>
-                `;
-
-                if (entries.length > 0) {
-                    html += `
-                        <div class="mb-3">
-                            <h6>Processed ${entries.length} chat entries</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <small class="text-muted">First entry:</small><br>
-                                    <strong>${entries[0].author}</strong> - ${Utils.formatDate(entries[0].timestamp)}
-                                </div>
-                                <div class="col-md-6">
-                                    <small class="text-muted">Last entry:</small><br>
-                                    <strong>${entries[entries.length - 1].author}</strong> - ${Utils.formatDate(entries[entries.length - 1].timestamp)}
+                    // Show extracted files if available
+                    if (response.extractedFiles && response.extractedFiles.length > 0) {
+                        html += `
+                            <div class="mb-3">
+                                <h6>Extracted ${response.extractedFiles.length} multimedia files</h6>
+                                <div class="small text-muted">
+                                    ${response.extractedFiles.slice(0, 5).join('<br>')}
+                                    ${response.extractedFiles.length > 5 ? '<br>... and ' + (response.extractedFiles.length - 5) + ' more' : ''}
                                 </div>
                             </div>
-                        </div>
-                    `;
-                }
+                        `;
+                    }
 
-                if (extractedFiles.length > 0) {
-                    html += `
-                        <div class="mb-3">
-                            <h6>Extracted ${extractedFiles.length} multimedia files</h6>
-                            <div class="small text-muted">
-                                ${extractedFiles.slice(0, 5).join('<br>')}
-                                ${extractedFiles.length > 5 ? '<br>... and ' + (extractedFiles.length - 5) + ' more' : ''}
+                    // Show additional details
+                    if (response.totalAttachments !== undefined) {
+                        html += `
+                            <div class="mb-3">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">Total Attachments:</small><br>
+                                        <strong>${response.totalAttachments}</strong>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted">File Type:</small><br>
+                                        <strong>${response.fileType || 'Unknown'}</strong>
+                                    </div>
+                                </div>
                             </div>
+                        `;
+                    }
+
+                    resultsContent.innerHTML = html;
+                    resultsSection.style.display = 'block';
+                    document.getElementById('progressSection').style.display = 'none';
+
+                } catch (e) {
+                    // Fallback for unexpected response format
+                    console.error('Error parsing response:', e);
+                    resultsContent.innerHTML = `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-exclamation-triangle me-2"></i>Upload Completed</h6>
+                            <p class="mb-0">File: <strong>${fileName}</strong></p>
+                            <p class="mb-0">Response: <code>${responseText}</code></p>
                         </div>
                     `;
+                    resultsSection.style.display = 'block';
+                    document.getElementById('progressSection').style.display = 'none';
                 }
 
-                resultsContent.innerHTML = html;
-                resultsSection.style.display = 'block';
-                document.getElementById('progressSection').style.display = 'none';
-                
                 isUploading = false;
             }
 
@@ -510,7 +524,7 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Custom JavaScript -->
     <script>
         // Global utility functions
@@ -518,11 +532,11 @@
             showLoading: function(elementId) {
                 document.getElementById(elementId).style.display = 'block';
             },
-            
+
             hideLoading: function(elementId) {
                 document.getElementById(elementId).style.display = 'none';
             },
-            
+
             showAlert: function(message, type = 'info') {
                 const alertDiv = document.createElement('div');
                 alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
@@ -531,7 +545,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 `;
                 document.querySelector('main .container').insertBefore(alertDiv, document.querySelector('main .container').firstChild);
-                
+
                 // Auto-dismiss after 5 seconds
                 setTimeout(() => {
                     if (alertDiv.parentNode) {
@@ -539,12 +553,12 @@
                     }
                 }, 5000);
             },
-            
+
             formatDate: function(dateString) {
                 const date = new Date(dateString);
                 return date.toLocaleString();
             },
-            
+
             formatFileSize: function(bytes) {
                 if (bytes === 0) return '0 Bytes';
                 const k = 1024;
@@ -555,4 +569,4 @@
         };
     </script>
 </body>
-</html> 
+</html>

@@ -297,18 +297,6 @@
                                     <div class="stats-label">Active</div>
                                 </div>
                             </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <div class="stats-card">
-                                    <div class="stats-number" id="totalLocations">0</div>
-                                    <div class="stats-label">File Locations</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <div class="stats-card">
-                                    <div class="stats-number" id="uniqueClients">0</div>
-                                    <div class="stats-label">Unique Clients</div>
-                                </div>
-                            </div>
                         </div>
 
                         <!-- Loading -->
@@ -334,38 +322,10 @@
                                                     <th>Hash</th>
                                                     <th>Status</th>
                                                     <th>Last Added</th>
-                                                    <th>Locations</th>
                                                     <th>Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="attachmentsTableBody">
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Locations Table -->
-                        <div id="locationsSection" style="display: none;">
-                            <div class="card mt-4">
-                                <div class="card-header d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0">File Locations</h5>
-                                    <span class="badge bg-primary" id="locationCount">0 locations</span>
-                                </div>
-                                <div class="card-body">
-                                    <div class="table-responsive">
-                                        <table class="table table-hover">
-                                            <thead>
-                                                <tr>
-                                                    <th>Real Filename</th>
-                                                    <th>Client ID</th>
-                                                    <th>Status</th>
-                                                    <th>Last Added</th>
-                                                    <th>Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="locationsTableBody">
                                             </tbody>
                                         </table>
                                     </div>
@@ -396,7 +356,6 @@
     <div th:fragment="scripts">
         <script>
             let currentAttachments = [];
-            let currentLocations = [];
 
             document.addEventListener('DOMContentLoaded', function() {
                 // Load initial data
@@ -413,17 +372,6 @@
                     .then(attachments => {
                         currentAttachments = attachments;
                         displayAttachments(attachments);
-
-                        // Load locations for these attachments
-                        return Promise.all(attachments.map(att =>
-                            fetch(`/api/attachments/locations/client/${att.hash}`)
-                                .then(response => response.json())
-                                .catch(() => [])
-                        ));
-                    })
-                    .then(locationArrays => {
-                        currentLocations = locationArrays.flat();
-                        displayLocations(currentLocations);
                         updateStatistics();
                         Utils.hideLoading('loadingAttachments');
                         showResults();
@@ -492,17 +440,6 @@
 
                         currentAttachments = filteredAttachments;
                         displayAttachments(filteredAttachments);
-
-                        // Load locations for filtered attachments
-                        return Promise.all(filteredAttachments.map(att =>
-                            fetch(`/api/attachments/locations/client/${att.hash}`)
-                                .then(response => response.json())
-                                .catch(() => [])
-                        ));
-                    })
-                    .then(locationArrays => {
-                        currentLocations = locationArrays.flat();
-                        displayLocations(currentLocations);
                         updateStatistics();
                         Utils.hideLoading('loadingAttachments');
                         showResults();
@@ -522,7 +459,7 @@
                 if (attachments.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="5" class="text-center py-4">
+                            <td colspan="4" class="text-center py-4">
                                 <i class="bi bi-inbox display-4 text-muted mb-3"></i>
                                 <p class="text-muted">No attachments found</p>
                             </td>
@@ -534,7 +471,6 @@
                 let html = '';
                 attachments.forEach(att => {
                     const statusBadge = getStatusBadge(att.status);
-                    const locationCount = currentLocations.filter(loc => loc.attachmentHash === att.hash).length;
 
                     html += `
                         <tr>
@@ -545,11 +481,7 @@
                                 </button>
                             </td>
                             <td>${statusBadge}</td>
-                            <td>${Utils.formatDate(att.lastAdded)}</td>
-                            <td>
-                                <span class="badge bg-info">${locationCount}</span>
-                                ${locationCount > 0 ? ' locations' : ' location'}
-                            </td>
+                            <td>${Utils.formatDate(att.lastAddedTimestamp)}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary" onclick="viewAttachmentDetails('${att.hash}')">
                                     <i class="bi bi-eye"></i> View
@@ -565,61 +497,14 @@
                 tbody.innerHTML = html;
             }
 
-            function displayLocations(locations) {
-                const tbody = document.getElementById('locationsTableBody');
-                const countElement = document.getElementById('locationCount');
 
-                countElement.textContent = `${locations.length} locations`;
-
-                if (locations.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="text-center py-4">
-                                <i class="bi bi-folder display-4 text-muted mb-3"></i>
-                                <p class="text-muted">No file locations found</p>
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }
-
-                let html = '';
-                locations.forEach(loc => {
-                    const statusBadge = getStatusBadge(loc.status);
-
-                    html += `
-                        <tr>
-                            <td>
-                                <i class="bi bi-file-earmark me-2"></i>
-                                ${loc.realFileName}
-                            </td>
-                            <td>
-                                <code class="small">${loc.clientId}</code>
-                            </td>
-                            <td>${statusBadge}</td>
-                            <td>${Utils.formatDate(loc.lastAdded)}</td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-warning" onclick="updateLocationStatus(${loc.id}, 1)">
-                                    <i class="bi bi-pause"></i> Deactivate
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                tbody.innerHTML = html;
-            }
 
             function updateStatistics() {
                 const totalAttachments = currentAttachments.length;
-                const activeAttachments = currentAttachments.filter(att => att.status === 0).length;
-                const totalLocations = currentLocations.length;
-                const uniqueClients = new Set(currentLocations.map(loc => loc.clientId)).size;
+                const activeAttachments = currentAttachments.filter(att => att.status === 1).length;
 
                 document.getElementById('totalAttachments').textContent = totalAttachments;
                 document.getElementById('activeAttachments').textContent = activeAttachments;
-                document.getElementById('totalLocations').textContent = totalLocations;
-                document.getElementById('uniqueClients').textContent = uniqueClients;
             }
 
             function getStatusBadge(status) {
@@ -652,37 +537,15 @@
                 fetch(`/api/attachments/hash/${hash}`)
                     .then(response => response.json())
                     .then(attachment => {
-                        const locations = currentLocations.filter(loc => loc.attachmentHash === hash);
-
                         let html = `
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-12">
                                     <h6>Attachment Information</h6>
                                     <table class="table table-sm">
                                         <tr><td><strong>Hash:</strong></td><td><code>${attachment.hash}</code></td></tr>
                                         <tr><td><strong>Status:</strong></td><td>${getStatusBadge(attachment.status)}</td></tr>
-                                        <tr><td><strong>Last Added:</strong></td><td>${Utils.formatDate(attachment.lastAdded)}</td></tr>
+                                        <tr><td><strong>Last Added:</strong></td><td>${Utils.formatDate(attachment.lastAddedTimestamp)}</td></tr>
                                     </table>
-                                </div>
-                                <div class="col-md-6">
-                                    <h6>File Locations (${locations.length})</h6>
-                                    ${locations.length > 0 ? `
-                                        <div class="list-group">
-                                            ${locations.map(loc => `
-                                                <div class="list-group-item">
-                                                    <div class="d-flex justify-content-between align-items-center">
-                                                        <div>
-                                                            <strong>${loc.realFileName}</strong><br>
-                                                            <small class="text-muted">Client: ${loc.clientId}</small>
-                                                        </div>
-                                                        <div>
-                                                            ${getStatusBadge(loc.status)}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                    ` : '<p class="text-muted">No file locations found</p>'}
                                 </div>
                             </div>
                         `;
@@ -713,20 +576,7 @@
                     });
             }
 
-            function updateLocationStatus(locationId, status) {
-                fetch(`/api/attachments/locations/${locationId}/status/${status}`, { method: 'PUT' })
-                    .then(response => {
-                        if (response.ok) {
-                            Utils.showAlert('Location status updated successfully', 'success');
-                            loadAllAttachments(); // Refresh the list
-                        } else {
-                            throw new Error('Failed to update status');
-                        }
-                    })
-                    .catch(error => {
-                        Utils.showAlert('Failed to update location status: ' + error.message, 'danger');
-                    });
-            }
+
 
             function clearFilters() {
                 document.getElementById('searchHash').value = '';
@@ -738,13 +588,11 @@
             function showResults() {
                 document.getElementById('statsSection').style.display = 'block';
                 document.getElementById('attachmentsSection').style.display = 'block';
-                document.getElementById('locationsSection').style.display = 'block';
             }
 
             function hideResults() {
                 document.getElementById('statsSection').style.display = 'none';
                 document.getElementById('attachmentsSection').style.display = 'none';
-                document.getElementById('locationsSection').style.display = 'none';
             }
 
             function copyToClipboard(text) {

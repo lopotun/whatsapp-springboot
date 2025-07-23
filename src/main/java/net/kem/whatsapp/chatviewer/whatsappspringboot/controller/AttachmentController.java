@@ -70,6 +70,8 @@ public class AttachmentController {
         return ResponseEntity.ok(locations);
     }
 
+
+
     /**
      * Get all attachments for the current user
      */
@@ -79,10 +81,21 @@ public class AttachmentController {
         String username = authentication.getName();
 
         return userService.findByUsername(username).map(user -> {
-            String clientId = "user_" + user.getId();
-            List<Location> userLocations = attachmentService.findLocationsByClientId(clientId);
-            List<Attachment> userAttachments =
-                    userLocations.stream().map(Location::getAttachment).distinct().toList();
+            // Try both clientId formats to handle existing data
+            String clientId1 = "user_" + user.getId();
+            String clientId2 = user.getId().toString();
+
+            // Get attachment IDs for the user
+            List<Long> attachmentIds = attachmentService.findAttachmentIdsByClientId(clientId1);
+            if (attachmentIds.isEmpty()) {
+                attachmentIds = attachmentService.findAttachmentIdsByClientId(clientId2);
+            }
+
+            // Fetch attachments by IDs
+            List<Attachment> userAttachments = attachmentIds.stream()
+                    .map(attachmentId -> attachmentService.findById(attachmentId))
+                    .filter(java.util.Optional::isPresent).map(java.util.Optional::get).toList();
+
             return ResponseEntity.ok(userAttachments);
         }).orElse(ResponseEntity.notFound().build());
     }

@@ -83,6 +83,13 @@ public class AttachmentService {
     }
 
     /**
+     * Find attachment by ID
+     */
+    public Optional<Attachment> findById(Long id) {
+        return attachmentRepository.findById(id);
+    }
+
+    /**
      * Check if attachment exists by hash
      */
     public boolean existsByHash(String hash) {
@@ -95,6 +102,15 @@ public class AttachmentService {
     public List<Location> findLocationsByClientId(String clientId) {
         return locationRepository.findByClientId(clientId);
     }
+
+    /**
+     * Find attachment IDs for a client
+     */
+    public List<Long> findAttachmentIdsByClientId(String clientId) {
+        return locationRepository.findAttachmentIdsByClientId(clientId);
+    }
+
+
 
     /**
      * Find all locations for a client with specific status
