@@ -17,11 +17,14 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional
 public class AttachmentService {
 
-    @Autowired
-    private AttachmentRepository attachmentRepository;
+    private final AttachmentRepository attachmentRepository;
+    private final LocationRepository locationRepository;
 
-    @Autowired
-    private LocationRepository locationRepository;
+    public AttachmentService(@Autowired AttachmentRepository attachmentRepository,
+                             @Autowired LocationRepository locationRepository) {
+        this.attachmentRepository = attachmentRepository;
+        this.locationRepository = locationRepository;
+    }
 
     /**
      * Save or update attachment and create location record
@@ -29,10 +32,9 @@ public class AttachmentService {
      * @param hash The SHA-256 hash of the file content
      * @param realFilename The original filename
      * @param clientId The client ID this file belongs to
-     * @return The created or updated attachment
+     * @return The created or updated location
      */
-    public Attachment saveAttachmentWithLocation(String hash, String realFilename,
-            String clientId) {
+    public Location saveAttachmentWithLocation(String hash, String realFilename, String clientId) {
         // Check if attachment already exists
         Optional<Attachment> existingAttachment = attachmentRepository.findByHash(hash);
         Attachment attachment;
@@ -55,24 +57,25 @@ public class AttachmentService {
         Optional<Location> existingLocation =
                 locationRepository.findByRealFilenameAndClientId(realFilename, clientId);
 
+        Location location;
         if (existingLocation.isPresent()) {
             // Update existing location
-            Location location = existingLocation.get();
+            location = existingLocation.get();
             location.setLastAddedTimestamp(LocalDateTime.now());
             location.setStatus((byte) 1);
-            locationRepository.save(location);
+            location = locationRepository.save(location);
             log.debug("Updated existing location for file: {} and client: {}", realFilename,
                     clientId);
         } else {
             // Create new location
-            Location location = Location.builder().realFilename(realFilename).clientId(clientId)
+            location = Location.builder().realFilename(realFilename).clientId(clientId)
                     .lastAddedTimestamp(LocalDateTime.now()).status((byte) 1).attachment(attachment)
                     .build();
-            locationRepository.save(location);
+            location = locationRepository.save(location);
             log.info("Created new location for file: {} and client: {}", realFilename, clientId);
         }
 
-        return attachment;
+        return location;
     }
 
     /**

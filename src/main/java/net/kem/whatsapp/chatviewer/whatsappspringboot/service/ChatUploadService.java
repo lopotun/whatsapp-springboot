@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEnhancer;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Location;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -172,6 +173,7 @@ public class ChatUploadService {
         List<ChatEntry> chatEntries = new ArrayList<>();
         List<String> extractedFiles = new ArrayList<>();
         Map<String, String> filenameToHashMap = new HashMap<>();
+        Map<String, Location> filenameToLocationMap = new HashMap<>();
 
         long startTime = System.currentTimeMillis();
         int processedEntries = 0;
@@ -220,6 +222,12 @@ public class ChatUploadService {
                     String contentHash = processMultimediaFile(zis, fileName, userId);
                     filenameToHashMap.put(fileName, contentHash);
                     extractedFiles.add(fileName);
+
+                    // Get the location for this file
+                    String clientId = "user_" + userId;
+                    Location location = attachmentService.saveAttachmentWithLocation(contentHash,
+                            fileName, clientId);
+                    filenameToLocationMap.put(fileName, location);
                 }
 
                 zis.closeEntry();
@@ -239,7 +247,7 @@ public class ChatUploadService {
         }
 
         // Link attachment hashes to chat entries
-        linkAttachmentHashes(chatEntries, filenameToHashMap);
+        linkAttachmentHashes(chatEntries, filenameToHashMap, filenameToLocationMap);
 
         // Handle re-upload with smart incremental update
         List<ChatEntryEntity> savedEntries;
@@ -349,7 +357,7 @@ public class ChatUploadService {
     }
 
     private void linkAttachmentHashes(List<ChatEntry> chatEntries,
-            Map<String, String> filenameToHashMap) {
+            Map<String, String> filenameToHashMap, Map<String, Location> filenameToLocationMap) {
         for (ChatEntry entry : chatEntries) {
             if (entry.getFileName() != null && !entry.getFileName().isEmpty()) {
                 String hash = filenameToHashMap.get(entry.getFileName());

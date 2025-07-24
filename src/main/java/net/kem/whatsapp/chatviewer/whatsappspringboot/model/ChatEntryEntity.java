@@ -1,108 +1,121 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 
-import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
-import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "chat_entries", indexes = {
-    @Index(name = "idx_chat_entries_author", columnList = "author"),
-    @Index(name = "idx_chat_entries_type", columnList = "type"),
-    @Index(name = "idx_chat_entries_local_date_time", columnList = "local_date_time"),
-    @Index(name = "idx_chat_entries_author_type", columnList = "author, type"),
-    @Index(name = "idx_chat_entries_date_author", columnList = "local_date_time, author"),
-    @Index(name = "idx_chat_entries_created_at", columnList = "created_at"),
-    @Index(name = "idx_chat_entries_user_id", columnList = "user_id"),
-    @Index(name = "idx_chat_entries_chat_id", columnList = "chat_id"),
-    @Index(name = "idx_chat_entries_user_chat", columnList = "user_id, chat_id")
-})
+@Table(name = "chat_entries",
+        indexes = {@Index(name = "idx_chat_entries_author", columnList = "author"),
+                @Index(name = "idx_chat_entries_type", columnList = "type"),
+                @Index(name = "idx_chat_entries_local_date_time", columnList = "local_date_time"),
+                @Index(name = "idx_chat_entries_author_type", columnList = "author, type"),
+                @Index(name = "idx_chat_entries_date_author", columnList = "local_date_time, author"),
+                @Index(name = "idx_chat_entries_created_at", columnList = "created_at"),
+                @Index(name = "idx_chat_entries_user_id", columnList = "user_id"),
+                @Index(name = "idx_chat_entries_chat_id", columnList = "chat_id"),
+                @Index(name = "idx_chat_entries_user_chat", columnList = "user_id, chat_id")})
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChatEntryEntity {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(name = "timestamp", nullable = false)
     private String timestamp;
-    
+
     @Column(name = "payload", columnDefinition = "TEXT")
     private String payload;
-    
+
     @Column(name = "author", nullable = false, columnDefinition = "VARCHAR(255) DEFAULT 'Unknown'")
     private String author;
-    
+
     @Column(name = "file_name")
     private String fileName;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type")
     private ChatEntry.Type type;
-    
+
     @Column(name = "local_date_time")
     private LocalDateTime localDateTime;
-    
+
     @Column(name = "attachment_hash")
     private String attachmentHash;
-    
+
+    // Many-to-many relationship with Location
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "chat_entry_locations", joinColumns = @JoinColumn(name = "chat_entry_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id"))
+    @JsonIgnore
+    private List<Location> locations;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-    
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
+
     // User who owns this chat entry
     @Column(name = "user_id", nullable = false)
     private Long userId;
-    
+
     // Chat ID this entry belongs to (based on uploaded filename)
     @Column(name = "chat_id", nullable = false)
     private String chatId;
-    
+
     @PrePersist
     protected void onCreate() {
         if (author == null || author.trim().isEmpty()) {
             author = "Unknown";
         }
+        if (locations == null) {
+            locations = new ArrayList<>();
+        }
     }
-    
+
     // Convert from ChatEntry model to entity
     public static ChatEntryEntity fromChatEntry(ChatEntry chatEntry, Long userId, String chatId) {
-        return ChatEntryEntity.builder()
-                .timestamp(chatEntry.getTimestamp())
-                .payload(chatEntry.getPayload())
-                .author(chatEntry.getAuthor())
-                .fileName(chatEntry.getFileName())
-                .type(chatEntry.getType())
+        return ChatEntryEntity.builder().timestamp(chatEntry.getTimestamp())
+                .payload(chatEntry.getPayload()).author(chatEntry.getAuthor())
+                .fileName(chatEntry.getFileName()).type(chatEntry.getType())
                 .localDateTime(chatEntry.getLocalDateTime())
-                .attachmentHash(chatEntry.getAttachmentHash())
-                .userId(userId)
-                .chatId(chatId)
+                .attachmentHash(chatEntry.getAttachmentHash()).userId(userId).chatId(chatId)
                 .build();
     }
-    
+
     // Convert entity back to ChatEntry model
     public ChatEntry toChatEntry() {
-        ChatEntry chatEntry = ChatEntry.builder()
-                .timestamp(timestamp)
-                .payload(payload)
-                .author(author)
-                .fileName(fileName)
-                .type(type)
-                .localDateTime(localDateTime)
-                .build();
+        ChatEntry chatEntry = ChatEntry.builder().timestamp(timestamp).payload(payload)
+                .author(author).fileName(fileName).type(type).localDateTime(localDateTime).build();
         chatEntry.setAttachmentHash(attachmentHash);
         return chatEntry;
     }
-} 
+}

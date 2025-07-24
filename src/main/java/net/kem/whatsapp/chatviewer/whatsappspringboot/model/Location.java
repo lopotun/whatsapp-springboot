@@ -1,6 +1,8 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -9,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -47,6 +50,11 @@ public class Location {
     @JsonIgnore
     private Attachment attachment;
 
+    // Many-to-many relationship with ChatEntry
+    @ManyToMany(mappedBy = "locations", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<ChatEntryEntity> chatEntries;
+
     @PrePersist
     protected void onCreate() {
         if (lastAddedTimestamp == null) {
@@ -54,6 +62,9 @@ public class Location {
         }
         if (status == null) {
             status = 1; // Default active status
+        }
+        if (chatEntries == null) {
+            chatEntries = new ArrayList<>();
         }
     }
 
