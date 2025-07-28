@@ -53,20 +53,19 @@ public class AttachmentController {
     /**
      * Get all locations for a client
      */
-    @GetMapping("/locations/client/{clientId}")
-    public ResponseEntity<List<Location>> getLocationsByClientId(@PathVariable String clientId) {
-        List<Location> locations = attachmentService.findLocationsByClientId(clientId);
+    @GetMapping("/locations/user/{userId}")
+    public ResponseEntity<List<Location>> getLocationsByUserId(@PathVariable Long userId) {
+        List<Location> locations = attachmentService.findLocationsByUserId(userId);
         return ResponseEntity.ok(locations);
     }
 
     /**
      * Get locations for a client with specific status
      */
-    @GetMapping("/locations/client/{clientId}/status/{status}")
-    public ResponseEntity<List<Location>> getLocationsByClientIdAndStatus(
-            @PathVariable String clientId, @PathVariable Byte status) {
-        List<Location> locations =
-                attachmentService.findLocationsByClientIdAndStatus(clientId, status);
+    @GetMapping("/locations/user/{userId}/status/{status}")
+    public ResponseEntity<List<Location>> getLocationsByUserIdAndStatus(@PathVariable Long userId,
+            @PathVariable Byte status) {
+        List<Location> locations = attachmentService.findLocationsByUserIdAndStatus(userId, status);
         return ResponseEntity.ok(locations);
     }
 
@@ -81,15 +80,8 @@ public class AttachmentController {
         String username = authentication.getName();
 
         return userService.findByUsername(username).map(user -> {
-            // Try both clientId formats to handle existing data
-            String clientId1 = "user_" + user.getId();
-            String clientId2 = user.getId().toString();
-
-            // Get attachment IDs for the user
-            List<Long> attachmentIds = attachmentService.findAttachmentIdsByClientId(clientId1);
-            if (attachmentIds.isEmpty()) {
-                attachmentIds = attachmentService.findAttachmentIdsByClientId(clientId2);
-            }
+            // Get attachment IDs for the user using the new user_id field
+            List<Long> attachmentIds = attachmentService.findAttachmentIdsByUserId(user.getId());
 
             // Fetch attachments by IDs
             List<Attachment> userAttachments = attachmentIds.stream()

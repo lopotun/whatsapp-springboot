@@ -2,7 +2,6 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,20 +25,20 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
     List<ChatEntryEntity> findByAuthorAndType(String author, ChatEntry.Type type);
 
     List<ChatEntryEntity> findByAuthorAndLocalDateTimeBetween(String author, LocalDateTime start,
-                                                              LocalDateTime end);
+            LocalDateTime end);
 
     List<ChatEntryEntity> findByTypeAndLocalDateTimeBetween(ChatEntry.Type type,
-                                                            LocalDateTime start, LocalDateTime end);
+            LocalDateTime start, LocalDateTime end);
 
     // Full-text search in payload
     @Query("""
-        SELECT ce FROM ChatEntryEntity ce WHERE \
-        LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
-        LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%'))""")
+            SELECT ce FROM ChatEntryEntity ce WHERE \
+            LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
+            LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%'))""")
     Page<ChatEntryEntity> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
     // Search by attachment hash
-    List<ChatEntryEntity> findByAttachmentHash(String attachmentHash);
+    // REMOVED: List<ChatEntryEntity> findByAttachmentHash(String attachmentHash);
 
     // User-specific methods
     List<ChatEntryEntity> findByUserId(Long userId);
@@ -53,7 +52,7 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
 
     // Multiple chat methods
     Page<ChatEntryEntity> findByUserIdAndChatIdIn(Long userId, List<String> chatIds,
-                                                  Pageable pageable);
+            Pageable pageable);
 
     // Check if chat exists for user
     boolean existsByUserIdAndChatId(Long userId, String chatId);
@@ -64,46 +63,46 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
     List<ChatEntryEntity> findByUserIdAndType(Long userId, ChatEntry.Type type);
 
     List<ChatEntryEntity> findByUserIdAndLocalDateTimeBetween(Long userId, LocalDateTime start,
-                                                              LocalDateTime end);
+            LocalDateTime end);
 
     // Combined search methods with user filter
     List<ChatEntryEntity> findByUserIdAndAuthorAndType(Long userId, String author,
-                                                       ChatEntry.Type type);
+            ChatEntry.Type type);
 
-    List<ChatEntryEntity> findByUserIdAndAuthorAndLocalDateTimeBetween(Long userId,
-                                                                       String author, LocalDateTime start, LocalDateTime end);
+    List<ChatEntryEntity> findByUserIdAndAuthorAndLocalDateTimeBetween(Long userId, String author,
+            LocalDateTime start, LocalDateTime end);
 
     List<ChatEntryEntity> findByUserIdAndTypeAndLocalDateTimeBetween(Long userId,
-                                                                     ChatEntry.Type type, LocalDateTime start, LocalDateTime end);
+            ChatEntry.Type type, LocalDateTime start, LocalDateTime end);
 
     // User-specific full-text search
     @Query("""
-        SELECT ce FROM ChatEntryEntity ce WHERE ce.userId = :userId AND \
-        (LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
-        LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%')))""")
+            SELECT ce FROM ChatEntryEntity ce WHERE ce.userId = :userId AND \
+            (LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
+            LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%')))""")
     Page<ChatEntryEntity> searchByUserIdAndKeyword(@Param("userId") Long userId,
-                                                   @Param("keyword") String keyword, Pageable pageable);
+            @Param("keyword") String keyword, Pageable pageable);
 
     // User and chat filtered full-text search
     @Query("""
-        SELECT ce FROM ChatEntryEntity ce WHERE ce.userId = :userId AND ce.chatId = :chatId AND \
-        (LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
-        LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%')))""")
+            SELECT ce FROM ChatEntryEntity ce WHERE ce.userId = :userId AND ce.chatId = :chatId AND \
+            (LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
+            LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%')))""")
     Page<ChatEntryEntity> searchByUserIdAndChatIdAndKeyword(@Param("userId") Long userId,
-                                                            @Param("chatId") String chatId, @Param("keyword") String keyword,
-                                                            Pageable pageable);
+            @Param("chatId") String chatId, @Param("keyword") String keyword, Pageable pageable);
 
     // Multiple chats keyword search
     @Query("""
-        SELECT ce FROM ChatEntryEntity ce WHERE ce.userId = :userId AND ce.chatId IN :chatIds AND \
-        (LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
-        LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%')))""")
+            SELECT ce FROM ChatEntryEntity ce WHERE ce.userId = :userId AND ce.chatId IN :chatIds AND \
+            (LOWER(ce.payload) LIKE LOWER(CONCAT('%', :keyword, '%')) OR \
+            LOWER(ce.author) LIKE LOWER(CONCAT('%', :keyword, '%')))""")
     Page<ChatEntryEntity> searchByUserIdAndChatIdInAndKeyword(@Param("userId") Long userId,
-                                                              @Param("chatIds") List<String> chatIds, @Param("keyword") String keyword,
-                                                              Pageable pageable);
+            @Param("chatIds") List<String> chatIds, @Param("keyword") String keyword,
+            Pageable pageable);
 
     // Search by attachment hash with user filter
-    List<ChatEntryEntity> findByUserIdAndAttachmentHash(Long userId, String attachmentHash);
+    // REMOVED: List<ChatEntryEntity> findByUserIdAndAttachmentHash(Long userId, String
+    // attachmentHash);
 
     // Count methods for statistics (user-specific)
     long countByUserId(Long userId);
@@ -112,8 +111,7 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
 
     long countByUserIdAndType(Long userId, ChatEntry.Type type);
 
-    long countByUserIdAndLocalDateTimeBetween(Long userId, LocalDateTime start,
-                                              LocalDateTime end);
+    long countByUserIdAndLocalDateTimeBetween(Long userId, LocalDateTime start, LocalDateTime end);
 
     long countByUserIdAndChatId(Long userId, String chatId);
 
@@ -126,10 +124,10 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
     @Query("SELECT DISTINCT ce.chatId FROM ChatEntryEntity ce WHERE ce.userId = :userId")
     List<String> findDistinctChatIdsByUserId(@Param("userId") Long userId);
 
-    // Get chat statistics for a user
+    // Get chat statistics for a user (updated to not use attachmentHash)
     @Query("""
-        SELECT ce.chatId, COUNT(ce) as messageCount, \
-        COUNT(CASE WHEN ce.attachmentHash IS NOT NULL THEN 1 END) as attachmentCount \
-        FROM ChatEntryEntity ce WHERE ce.userId = :userId GROUP BY ce.chatId""")
+            SELECT ce.chatId, COUNT(ce) as messageCount, \
+            COUNT(CASE WHEN ce.fileName IS NOT NULL THEN 1 END) as attachmentCount \
+            FROM ChatEntryEntity ce WHERE ce.userId = :userId GROUP BY ce.chatId""")
     List<Object[]> getChatStatisticsByUserId(@Param("userId") Long userId);
 }

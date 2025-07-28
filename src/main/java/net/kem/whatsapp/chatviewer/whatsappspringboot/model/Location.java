@@ -1,8 +1,6 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,7 +9,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -36,8 +33,8 @@ public class Location {
     @Column(name = "real_filename", nullable = false)
     private String realFilename;
 
-    @Column(name = "client_id", nullable = false)
-    private String clientId;
+    @Column(name = "user_id")
+    private Long userId;
 
     @Column(name = "last_added_timestamp", nullable = false)
     private LocalDateTime lastAddedTimestamp;
@@ -46,14 +43,14 @@ public class Location {
     private Byte status;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "attachment_id", nullable = false)
+    @JoinColumn(name = "attachment_id")
     @JsonIgnore
     private Attachment attachment;
 
-    // Many-to-many relationship with ChatEntry
-    @ManyToMany(mappedBy = "locations", fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chat_entry_id")
     @JsonIgnore
-    private List<ChatEntryEntity> chatEntries;
+    private ChatEntryEntity chatEntry;
 
     @PrePersist
     protected void onCreate() {
@@ -62,9 +59,6 @@ public class Location {
         }
         if (status == null) {
             status = 1; // Default active status
-        }
-        if (chatEntries == null) {
-            chatEntries = new ArrayList<>();
         }
     }
 

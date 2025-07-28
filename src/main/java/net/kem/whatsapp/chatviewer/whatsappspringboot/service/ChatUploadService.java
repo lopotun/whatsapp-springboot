@@ -10,21 +10,19 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEnhancer;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Location;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,16 +52,17 @@ public class ChatUploadService {
      * uploaded before by the same user, return the existing chat ID
      */
     public String generateChatId(String originalFileName, Long userId) {
-        // Create a deterministic chat ID based on filename (without timestamp and UUID)
+        // Create a deterministic chat ID based on filename and userId (without timestamp and UUID)
         String filenameHash = originalFileName.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
-        String baseChatId = filenameHash;
+        String baseChatId = "user" + userId + "_" + filenameHash;
 
         // Check if this user already has a chat with this filename
         List<String> existingChatIds = chatEntryService.getChatIdsForUser(userId);
 
         for (String existingChatId : existingChatIds) {
-            // If the existing chat ID starts with our base chat ID, it's the same file
-            if (existingChatId.startsWith(baseChatId + "_")) {
+            // Check for both new format (userX_filename) and old format (filename only)
+            if (existingChatId.startsWith(baseChatId + "_")
+                    || existingChatId.startsWith(filenameHash + "_")) {
                 log.info("Found existing chat ID: {} for filename: {} and user: {}", existingChatId,
                         originalFileName, userId);
                 return existingChatId;
@@ -71,12 +70,35 @@ public class ChatUploadService {
         }
 
         // No existing chat found, create a new one with timestamp and UUID
-        String timestamp = String.valueOf(System.currentTimeMillis());
-        String uuid = UUID.randomUUID().toString().substring(0, 8);
-        String newChatId = baseChatId + "_" + timestamp + "_" + uuid;
+        // Generate a unique chat ID that doesn't exist in the database
+        String newChatId;
+        int attempts = 0;
+        do {
+            // Add a small delay to ensure uniqueness if called multiple times quickly
+            if (attempts > 0) {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
 
-        log.info("Generated new chat ID: {} for filename: {} and user: {}", newChatId,
-                originalFileName, userId);
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String uuid = UUID.randomUUID().toString().substring(0, 12); // Use more characters for
+                                                                         // uniqueness
+            newChatId = baseChatId + "_" + timestamp + "_" + uuid;
+            attempts++;
+
+            // Safety check to prevent infinite loop
+            if (attempts > 10) {
+                log.error("Failed to generate unique chat ID after {} attempts for filename: {}",
+                        attempts, originalFileName);
+                throw new RuntimeException("Unable to generate unique chat ID");
+            }
+        } while (chatService.chatExists(userId, newChatId));
+
+        log.info("Generated new unique chat ID: {} for filename: {} and user: {} (attempts: {})",
+                newChatId, originalFileName, userId, attempts);
         return newChatId;
     }
 
@@ -126,6 +148,18 @@ public class ChatUploadService {
             throw new RuntimeException("Error processing chat file", e);
         }
 
+        // Remove duplicate entries before processing
+        int originalCount = chatEntries.size();
+        chatEntries = deduplicateEntries(chatEntries);
+        int finalCount = chatEntries.size();
+        int duplicatesRemoved = originalCount - finalCount;
+
+        if (duplicatesRemoved > 0) {
+            log.info(
+                    "Text file deduplication: removed {} duplicate entries ({} -> {} unique entries)",
+                    duplicatesRemoved, originalCount, finalCount);
+        }
+
         // Handle re-upload with smart incremental update
         List<ChatEntryEntity> savedEntries;
         if (isReupload) {
@@ -173,7 +207,6 @@ public class ChatUploadService {
         List<ChatEntry> chatEntries = new ArrayList<>();
         List<String> extractedFiles = new ArrayList<>();
         Map<String, String> filenameToHashMap = new HashMap<>();
-        Map<String, Location> filenameToLocationMap = new HashMap<>();
 
         long startTime = System.currentTimeMillis();
         int processedEntries = 0;
@@ -222,12 +255,6 @@ public class ChatUploadService {
                     String contentHash = processMultimediaFile(zis, fileName, userId);
                     filenameToHashMap.put(fileName, contentHash);
                     extractedFiles.add(fileName);
-
-                    // Get the location for this file
-                    String clientId = "user_" + userId;
-                    Location location = attachmentService.saveAttachmentWithLocation(contentHash,
-                            fileName, clientId);
-                    filenameToLocationMap.put(fileName, location);
                 }
 
                 zis.closeEntry();
@@ -246,8 +273,7 @@ public class ChatUploadService {
             throw new RuntimeException("Error processing ZIP file", e);
         }
 
-        // Link attachment hashes to chat entries
-        linkAttachmentHashes(chatEntries, filenameToHashMap, filenameToLocationMap);
+        // Note: Locations will be created after chat entries are saved to database
 
         // Handle re-upload with smart incremental update
         List<ChatEntryEntity> savedEntries;
@@ -257,9 +283,11 @@ public class ChatUploadService {
             savedEntries = performIncrementalUpdate(chatEntries, userId, chatId);
         } else {
             // New upload - save all entries
-            log.info("Saving {} chat entries to database...", chatEntries.size());
             savedEntries = chatEntryService.saveChatEntries(chatEntries, userId, chatId);
         }
+
+        // Create locations for chat entries that have attachments
+        createLocationsForChatEntries(savedEntries, userId);
 
         long totalTime = System.currentTimeMillis() - startTime;
         log.info(
@@ -300,6 +328,20 @@ public class ChatUploadService {
         } catch (IOException e) {
             throw new RuntimeException("Error processing chat text stream", e);
         }
+
+        // Remove duplicate entries from the list
+        int originalCount = chatEntries.size();
+        List<ChatEntry> uniqueEntries = deduplicateEntries(chatEntries);
+        chatEntries.clear();
+        chatEntries.addAll(uniqueEntries);
+        int finalCount = chatEntries.size();
+        int duplicatesRemoved = originalCount - finalCount;
+
+        if (duplicatesRemoved > 0) {
+            log.info(
+                    "ZIP file deduplication: removed {} duplicate entries ({} -> {} unique entries)",
+                    duplicatesRemoved, originalCount, finalCount);
+        }
     }
 
     private String processMultimediaFile(ZipInputStream zis, String fileName, Long userId)
@@ -336,10 +378,10 @@ public class ChatUploadService {
 
             // Save attachment information to database
             try {
-                String clientId = "user_" + userId; // Make clientId user-specific
-                attachmentService.saveAttachmentWithLocation(contentHash, fileName, clientId);
-                log.debug("Saved attachment: {} with hash: {} for user: {}", fileName, contentHash,
-                        userId);
+                attachmentService.saveAttachmentWithLocation(contentHash, fileName, userId,
+                        (long) totalBytes);
+                log.debug("Saved attachment: {} with hash: {} and size: {} bytes for user: {}",
+                        fileName, contentHash, totalBytes, userId);
             } catch (Exception e) {
                 log.error("Failed to save attachment to database: {} - {}", fileName,
                         e.getMessage());
@@ -356,21 +398,10 @@ public class ChatUploadService {
         }
     }
 
-    private void linkAttachmentHashes(List<ChatEntry> chatEntries,
-            Map<String, String> filenameToHashMap, Map<String, Location> filenameToLocationMap) {
-        for (ChatEntry entry : chatEntries) {
-            if (entry.getFileName() != null && !entry.getFileName().isEmpty()) {
-                String hash = filenameToHashMap.get(entry.getFileName());
-                if (hash != null) {
-                    entry.setAttachmentHash(hash);
-                    log.debug("Linked attachment hash {} to filename: {}", hash,
-                            entry.getFileName());
-                } else {
-                    log.warn("No hash found for filename: {}", entry.getFileName());
-                }
-            }
-        }
-    }
+    /**
+     * Create locations for chat entries that have attachments
+     */
+
 
     private boolean isNewEntry(String line) {
         return TIMESTAMP_PATTERN.matcher(line).lookingAt();
@@ -398,14 +429,21 @@ public class ChatUploadService {
                 String payload = parts[1].trim();
 
                 // Check for file attachment
-                String[] maybeWithAttachment = payload.split("\\s\\(file attached\\)");
+                String[] maybeWithAttachment = payload.split("\\s\\(file attached\\)", 2);
                 switch (maybeWithAttachment.length) {
                     case 1 -> // No file attachment
                             builder.payload(payload);
                     case 2 -> {
                         // File attachment found
-                        String fileName = maybeWithAttachment[0];
-                        builder.fileName(fileName);
+                        if (StringUtils.hasText(maybeWithAttachment[0])) {
+                            String fileName = maybeWithAttachment[0];
+                            builder.fileName(fileName);
+                        }
+                        if (StringUtils.hasText(maybeWithAttachment[1])) {
+                            // Remove leading CR/LF
+                            payload = maybeWithAttachment[1].substring(1); // Remove leading CR/LF
+                            builder.payload(payload);
+                        }
                     }
                     case 3 -> {
                         // Multiple parts: attachment along with text
@@ -447,18 +485,20 @@ public class ChatUploadService {
             newEntriesMap.put(key, entry);
         }
 
-        // Find entries to keep (existing entries that are still in new file)
-        List<ChatEntryEntity> entriesToKeep = new ArrayList<>();
-        Set<String> keptEntryKeys = new HashSet<>();
-
+        // Create a map of existing entries for efficient lookup
+        Map<String, ChatEntryEntity> existingEntriesMap = new HashMap<>();
         for (ChatEntryEntity existingEntry : existingEntries) {
             String key = createEntryKey(existingEntry);
-            if (newEntriesMap.containsKey(key)) {
-                entriesToKeep.add(existingEntry);
-                keptEntryKeys.add(key);
-                log.debug("Keeping existing entry: {}", key);
-            } else {
-                log.debug("Removing existing entry (no longer in new file): {}", key);
+            existingEntriesMap.put(key, existingEntry);
+        }
+
+        // Find entries to remove (existing entries that are no longer in new file)
+        List<Long> entriesToRemove = new ArrayList<>();
+        for (ChatEntryEntity existingEntry : existingEntries) {
+            String key = createEntryKey(existingEntry);
+            if (!newEntriesMap.containsKey(key)) {
+                entriesToRemove.add(existingEntry.getId());
+                log.debug("Marking existing entry for removal (no longer in new file): {}", key);
             }
         }
 
@@ -466,39 +506,63 @@ public class ChatUploadService {
         List<ChatEntry> entriesToAdd = new ArrayList<>();
         for (ChatEntry newEntry : newEntries) {
             String key = createEntryKey(newEntry);
-            if (!keptEntryKeys.contains(key)) {
+            if (!existingEntriesMap.containsKey(key)) {
                 entriesToAdd.add(newEntry);
                 log.debug("Adding new entry: {}", key);
             }
         }
 
-        // Delete all existing entries
-        chatEntryService.deleteChat(userId, chatId);
-        log.info("Deleted all existing entries for chat: {}", chatId);
-
-        // Save kept entries and new entries
-        List<ChatEntryEntity> savedEntries = new ArrayList<>();
-
-        if (!entriesToKeep.isEmpty()) {
-            log.info("Re-saving {} kept entries", entriesToKeep.size());
-            // Convert ChatEntryEntity back to ChatEntry for saving
-            List<ChatEntry> entriesToKeepAsChatEntries = entriesToKeep.stream()
-                    .map(ChatEntryEntity::toChatEntry).collect(Collectors.toList());
-            savedEntries.addAll(
-                    chatEntryService.saveChatEntries(entriesToKeepAsChatEntries, userId, chatId));
+        // Remove entries that are no longer in the file
+        if (!entriesToRemove.isEmpty()) {
+            log.info("Removing {} entries that are no longer in the file", entriesToRemove.size());
+            for (Long entryId : entriesToRemove) {
+                chatEntryService.deleteById(entryId);
+            }
         }
 
+        // Add new entries
+        List<ChatEntryEntity> savedEntries = new ArrayList<>();
         if (!entriesToAdd.isEmpty()) {
-            log.info("Saving {} new entries", entriesToAdd.size());
+            log.info("Adding {} new entries", entriesToAdd.size());
             savedEntries.addAll(chatEntryService.saveChatEntries(entriesToAdd, userId, chatId));
         }
 
+        // Get the final list of entries (kept + newly added)
+        List<ChatEntryEntity> finalEntries = chatEntryService
+                .findByUserIdAndChatId(userId, chatId, 0, Integer.MAX_VALUE).getContent();
+
+        // Create locations for chat entries that have attachments
+        createLocationsForChatEntries(finalEntries, userId);
+
         log.info(
                 "Incremental update completed. Total entries: {} (kept: {}, added: {}, removed: {})",
-                savedEntries.size(), entriesToKeep.size(), entriesToAdd.size(),
-                existingEntries.size() - entriesToKeep.size());
+                finalEntries.size(), existingEntries.size() - entriesToRemove.size(),
+                entriesToAdd.size(), entriesToRemove.size());
 
-        return savedEntries;
+        return finalEntries;
+    }
+
+    /**
+     * Create locations for chat entries that have attachments
+     */
+    private void createLocationsForChatEntries(List<ChatEntryEntity> chatEntries, Long userId) {
+        for (ChatEntryEntity chatEntry : chatEntries) {
+            if (chatEntry.getFileName() != null && !chatEntry.getFileName().isEmpty()) {
+                try {
+                    // Find attachment by filename (since we don't have direct hash link)
+                    // This is a simplified approach - in a real implementation you might want to
+                    // store the hash mapping differently or use a more sophisticated lookup
+                    attachmentService.saveLocationForChatEntry(chatEntry.getFileName(), userId,
+                            chatEntry);
+                    log.debug("Created location for chat entry with filename: {}",
+                            chatEntry.getFileName());
+                } catch (Exception e) {
+                    log.error("Failed to create location for chat entry with filename: {} - {}",
+                            chatEntry.getFileName(), e.getMessage());
+                    // Continue processing even if location creation fails
+                }
+            }
+        }
     }
 
     /**
@@ -518,6 +582,33 @@ public class ChatUploadService {
         return String.format("%s|%s|%s|%s", entry.getTimestamp(), entry.getAuthor(),
                 entry.getPayload() != null ? entry.getPayload() : "",
                 entry.getFileName() != null ? entry.getFileName() : "");
+    }
+
+    /**
+     * Remove duplicate entries from a list based on their unique key
+     */
+    private List<ChatEntry> deduplicateEntries(List<ChatEntry> entries) {
+        Map<String, ChatEntry> uniqueEntries = new LinkedHashMap<>();
+
+        for (ChatEntry entry : entries) {
+            String key = createEntryKey(entry);
+            if (!uniqueEntries.containsKey(key)) {
+                uniqueEntries.put(key, entry);
+            } else {
+                log.debug("Removing duplicate entry: {}", key);
+            }
+        }
+
+        int originalCount = entries.size();
+        int uniqueCount = uniqueEntries.size();
+        int duplicatesRemoved = originalCount - uniqueCount;
+
+        if (duplicatesRemoved > 0) {
+            log.info("Removed {} duplicate entries ({} -> {} unique entries)", duplicatesRemoved,
+                    originalCount, uniqueCount);
+        }
+
+        return new ArrayList<>(uniqueEntries.values());
     }
 
     // Result class for upload operations

@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
@@ -243,33 +242,6 @@ class ChatEntryServiceTest {
         assertNotNull(result);
         assertEquals(1, result.size());
         verify(chatEntryRepository).findByLocalDateTimeBetween(start, end);
-    }
-
-    @Test
-    void updateAttachmentHash_ShouldUpdateEntity_WhenExists() {
-        // Given
-        when(chatEntryRepository.findById(1L)).thenReturn(Optional.of(testChatEntryEntity));
-        when(chatEntryRepository.save(any(ChatEntryEntity.class))).thenReturn(testChatEntryEntity);
-
-        // When
-        chatEntryService.updateAttachmentHash(1L, "test-hash");
-
-        // Then
-        verify(chatEntryRepository).findById(1L);
-        verify(chatEntryRepository).save(any(ChatEntryEntity.class));
-    }
-
-    @Test
-    void updateAttachmentHash_ShouldNotUpdate_WhenNotExists() {
-        // Given
-        when(chatEntryRepository.findById(999L)).thenReturn(Optional.empty());
-
-        // When
-        chatEntryService.updateAttachmentHash(999L, "test-hash");
-
-        // Then
-        verify(chatEntryRepository).findById(999L);
-        verify(chatEntryRepository, never()).save(any(ChatEntryEntity.class));
     }
 
     @Test

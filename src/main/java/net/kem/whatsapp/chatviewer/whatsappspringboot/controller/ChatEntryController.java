@@ -3,8 +3,6 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.controller;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -14,12 +12,12 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.User;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatEntryService;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -204,15 +202,6 @@ public class ChatEntryController {
     }
 
     /**
-     * Find entries by attachment hash
-     */
-    @GetMapping("/attachment/{hash}")
-    public ResponseEntity<List<ChatEntryEntity>> findByAttachmentHash(@PathVariable String hash) {
-        List<ChatEntryEntity> results = chatEntryService.findByAttachmentHash(hash);
-        return ResponseEntity.ok(results);
-    }
-
-    /**
      * Get statistics (user-specific)
      */
     @GetMapping("/stats/author/{author}")
@@ -237,17 +226,6 @@ public class ChatEntryController {
         Long userId = getCurrentUserId();
         long count = chatEntryService.countByDateRange(userId, start, end);
         return ResponseEntity.ok(count);
-    }
-
-    /**
-     * Update attachment hash for a chat entry
-     */
-    @PutMapping("/{id}/attachment")
-    public ResponseEntity<Void> updateAttachmentHash(@PathVariable Long id,
-            @RequestParam String attachmentHash) {
-
-        chatEntryService.updateAttachmentHash(id, attachmentHash);
-        return ResponseEntity.ok().build();
     }
 
     /**

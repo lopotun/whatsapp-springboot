@@ -39,6 +39,9 @@ public class Attachment {
     @Column(name = "status", nullable = false)
     private Byte status;
 
+    @Column(name = "file_size")
+    private Long fileSize;
+
     @Column(name = "col1")
     private String col1;
 

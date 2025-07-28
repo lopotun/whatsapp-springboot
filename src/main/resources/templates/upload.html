@@ -195,14 +195,14 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="form-check mb-3">
-                                            <input class="form-check-input" type="radio" name="uploadType" id="chatFile" value="chat" checked>
+                                            <input class="form-check-input" type="radio" name="uploadType" id="chatFile" value="chat">
                                             <label class="form-check-label" for="chatFile">
                                                 <strong>Chat Text File (.txt)</strong><br>
                                                 <small class="text-muted">Upload a WhatsApp chat export text file</small>
                                             </label>
                                         </div>
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="uploadType" id="zipFile" value="zip">
+                                            <input class="form-check-input" type="radio" name="uploadType" id="zipFile" value="zip" checked>
                                             <label class="form-check-label" for="zipFile">
                                                 <strong>ZIP Archive</strong><br>
                                                 <small class="text-muted">Upload a ZIP file containing chat text and multimedia files</small>
@@ -284,7 +284,7 @@
 
     <div th:fragment="scripts">
         <script>
-            let currentUploadType = 'chat';
+            let currentUploadType = 'zip';
             let isUploading = false;
 
             // Initialize upload functionality
@@ -426,38 +426,38 @@
                     // Parse the JSON response
                     const response = JSON.parse(responseText);
 
-                    let html = `
-                        <div class="alert alert-success">
-                            <h6><i class="bi bi-check-circle me-2"></i>Upload Successful!</h6>
-                            <p class="mb-0">File: <strong>${fileName}</strong></p>
-                        </div>
-                    `;
+                let html = `
+                    <div class="alert alert-success">
+                        <h6><i class="bi bi-check-circle me-2"></i>Upload Successful!</h6>
+                        <p class="mb-0">File: <strong>${fileName}</strong></p>
+                    </div>
+                `;
 
                     // Show upload statistics
                     if (response.totalEntries !== undefined) {
-                        html += `
-                            <div class="mb-3">
+                    html += `
+                        <div class="mb-3">
                                 <h6>Processed ${response.totalEntries} chat entries</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-md-6">
                                         <small class="text-muted">Chat ID:</small><br>
                                         <strong>${response.chatId || 'N/A'}</strong>
-                                    </div>
-                                    <div class="col-md-6">
+                                </div>
+                                <div class="col-md-6">
                                         <small class="text-muted">Processing time:</small><br>
                                         <strong>${response.elapsedTime || 0}ms</strong>
-                                    </div>
                                 </div>
                             </div>
-                        `;
-                    }
+                        </div>
+                    `;
+                }
 
                     // Show extracted files if available
                     if (response.extractedFiles && response.extractedFiles.length > 0) {
-                        html += `
-                            <div class="mb-3">
+                    html += `
+                        <div class="mb-3">
                                 <h6>Extracted ${response.extractedFiles.length} multimedia files</h6>
-                                <div class="small text-muted">
+                            <div class="small text-muted">
                                     ${response.extractedFiles.slice(0, 5).join('<br>')}
                                     ${response.extractedFiles.length > 5 ? '<br>... and ' + (response.extractedFiles.length - 5) + ' more' : ''}
                                 </div>
@@ -478,14 +478,14 @@
                                         <small class="text-muted">File Type:</small><br>
                                         <strong>${response.fileType || 'Unknown'}</strong>
                                     </div>
-                                </div>
                             </div>
-                        `;
-                    }
+                        </div>
+                    `;
+                }
 
-                    resultsContent.innerHTML = html;
-                    resultsSection.style.display = 'block';
-                    document.getElementById('progressSection').style.display = 'none';
+                resultsContent.innerHTML = html;
+                resultsSection.style.display = 'block';
+                document.getElementById('progressSection').style.display = 'none';
 
                 } catch (e) {
                     // Fallback for unexpected response format

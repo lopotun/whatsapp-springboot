@@ -435,6 +435,7 @@
             });
 
                         function loadStatistics() {
+                console.log('Starting to load statistics...');
                 Utils.showLoading('loadingStats');
                 document.getElementById('chartsSection').style.display = 'none';
 
@@ -447,6 +448,7 @@
                     loadAttachmentStats().catch(err => ({ error: err, type: 'attachments' }))
                 ])
                 .then((results) => {
+                    console.log('All statistics loaded:', results);
                     Utils.hideLoading('loadingStats');
                     document.getElementById('chartsSection').style.display = 'block';
 
@@ -458,9 +460,9 @@
                     }
                 })
                 .catch(error => {
+                    console.error('Statistics loading error:', error);
                     Utils.hideLoading('loadingStats');
                     document.getElementById('chartsSection').style.display = 'block';
-                    console.error('Statistics loading error:', error);
                     // Only show alert for complete failures
                     if (error.message && !error.message.includes('document.getElementById')) {
                         Utils.showAlert('Some statistics may not be available. Please refresh the page.', 'warning');
@@ -535,19 +537,55 @@
                     });
             }
 
-            function loadMessageTypeStats() {
-                return Promise.all([
-                    fetch('/api/chat-entries/stats/type/TEXT').then(r => r.ok ? r.json() : 0).catch(() => 0),
-                    fetch('/api/chat-entries/stats/type/IMAGE').then(r => r.ok ? r.json() : 0).catch(() => 0),
-                    fetch('/api/chat-entries/stats/type/VIDEO').then(r => r.ok ? r.json() : 0).catch(() => 0),
-                    fetch('/api/chat-entries/stats/type/AUDIO').then(r => r.ok ? r.json() : 0).catch(() => 0),
-                    fetch('/api/chat-entries/stats/type/DOCUMENT').then(r => r.ok ? r.json() : 0).catch(() => 0)
-                ])
-                .then(([text, image, video, audio, document]) => {
+                        function loadMessageTypeStats() {
+                console.log('Starting to load message type stats...');
+
+                const promises = [
+                    fetch('/api/chat-entries/stats/type/TEXT').then(r => {
+                        console.log('TEXT response:', r.status, r.ok);
+                        return r.ok ? r.json() : 0;
+                    }).catch(err => {
+                        console.error('TEXT fetch error:', err);
+                        return 0;
+                    }),
+                    fetch('/api/chat-entries/stats/type/IMAGE').then(r => {
+                        console.log('IMAGE response:', r.status, r.ok);
+                        return r.ok ? r.json() : 0;
+                    }).catch(err => {
+                        console.error('IMAGE fetch error:', err);
+                        return 0;
+                    }),
+                    fetch('/api/chat-entries/stats/type/VIDEO').then(r => {
+                        console.log('VIDEO response:', r.status, r.ok);
+                        return r.ok ? r.json() : 0;
+                    }).catch(err => {
+                        console.error('VIDEO fetch error:', err);
+                        return 0;
+                    }),
+                    fetch('/api/chat-entries/stats/type/AUDIO').then(r => {
+                        console.log('AUDIO response:', r.status, r.ok);
+                        return r.ok ? r.json() : 0;
+                    }).catch(err => {
+                        console.error('AUDIO fetch error:', err);
+                        return 0;
+                    }),
+                    fetch('/api/chat-entries/stats/type/DOCUMENT').then(r => {
+                        console.log('DOCUMENT response:', r.status, r.ok);
+                        return r.ok ? r.json() : 0;
+                    }).catch(err => {
+                        console.error('DOCUMENT fetch error:', err);
+                        return 0;
+                    })
+                ];
+
+                return Promise.all(promises)
+                .then(([text, image, video, audio, documentCount]) => {
+                    console.log('Message type stats loaded:', { text, image, video, audio, document: documentCount });
+
                     const data = {
                         labels: ['Text', 'Image', 'Video', 'Audio', 'Document'],
                         datasets: [{
-                            data: [text, image, video, audio, document],
+                            data: [text, image, video, audio, documentCount],
                             backgroundColor: [
                                 '#25D366',
                                 '#FFE0B2',
@@ -566,31 +604,63 @@
                         }]
                     };
 
+                    console.log('Creating pie chart...');
                     createPieChart('messageTypesChart', data, 'Message Types Distribution');
 
                     // Update breakdown
+                    console.log('Looking for typeBreakdown element...');
                     const breakdown = document.getElementById('typeBreakdown');
-                    let html = '<div class="list-group">';
-                    const types = [
-                        { name: 'Text', count: text, color: '#25D366' },
-                        { name: 'Image', count: image, color: '#FFE0B2' },
-                        { name: 'Video', count: video, color: '#E1F5FE' },
-                        { name: 'Audio', count: audio, color: '#F3E5F5' },
-                        { name: 'Document', count: document, color: '#E8F5E8' }
-                    ];
+                    console.log('typeBreakdown element:', breakdown);
 
-                    types.forEach(type => {
-                        html += `
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <span class="badge" style="background-color: ${type.color}; color: #333;">${type.name}</span>
+                    if (breakdown) {
+                        console.log('Updating breakdown HTML...');
+                        let html = '<div class="list-group">';
+                        const types = [
+                            { name: 'Text', count: text, color: '#25D366' },
+                            { name: 'Image', count: image, color: '#FFE0B2' },
+                            { name: 'Video', count: video, color: '#E1F5FE' },
+                            { name: 'Audio', count: audio, color: '#F3E5F5' },
+                            { name: 'Document', count: documentCount, color: '#E8F5E8' }
+                        ];
+
+                        types.forEach(type => {
+                            html += `
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge" style="background-color: ${type.color}; color: #333;">${type.name}</span>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">${type.count}</span>
                                 </div>
-                                <span class="badge bg-primary rounded-pill">${type.count}</span>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    breakdown.innerHTML = html;
+                            `;
+                        });
+                        html += '</div>';
+                        breakdown.innerHTML = html;
+                        console.log('Breakdown HTML updated successfully');
+                    } else {
+                        console.error('typeBreakdown element not found');
+                    }
+                })
+                                .catch(error => {
+                    console.error('Failed to load message type stats:', error);
+                    // Show fallback data
+                    try {
+                        const breakdown = window.document.getElementById('typeBreakdown');
+                        if (breakdown) {
+                            breakdown.innerHTML = '<div class="alert alert-warning">Unable to load message type statistics. Please ensure you are logged in.</div>';
+                        }
+
+                        // Create empty chart
+                        const data = {
+                            labels: ['No Data'],
+                            datasets: [{
+                                data: [1],
+                                backgroundColor: ['#e9ecef']
+                            }]
+                        };
+                        createPieChart('messageTypesChart', data, 'Message Types Distribution');
+                    } catch (domError) {
+                        console.error('DOM error in catch block:', domError);
+                    }
                 });
             }
 
@@ -760,7 +830,16 @@
             }
 
             function createPieChart(canvasId, data, title) {
-                const ctx = document.getElementById(canvasId).getContext('2d');
+                console.log('Creating pie chart for:', canvasId);
+                const canvas = document.getElementById(canvasId);
+                console.log('Canvas element:', canvas);
+
+                if (!canvas) {
+                    console.error('Canvas element not found:', canvasId);
+                    return;
+                }
+
+                const ctx = canvas.getContext('2d');
                 if (charts[canvasId]) {
                     charts[canvasId].destroy();
                 }

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -304,19 +303,6 @@ class ChatEntryControllerTest {
         }
 
         @Test
-        void findByAttachmentHash_ShouldReturnList() throws Exception {
-                // Given
-                List<ChatEntryEntity> entries = Arrays.asList(testChatEntryEntity);
-                when(chatEntryService.findByAttachmentHash("test-hash")).thenReturn(entries);
-
-                // When & Then
-                mockMvc.perform(get("/api/chat-entries/attachment/test-hash"))
-                                .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(1));
-
-                verify(chatEntryService).findByAttachmentHash("test-hash");
-        }
-
-        @Test
         void countByAuthor_ShouldReturnCount() throws Exception {
                 // Given
                 when(chatEntryService.countByAuthor(userId, "John Doe")).thenReturn(5L);
@@ -352,18 +338,6 @@ class ChatEntryControllerTest {
                                 .andExpect(content().string("3"));
 
                 verify(chatEntryService).countByDateRange(anyLong(), any(), any());
-        }
-
-        @Test
-        void updateAttachmentHash_ShouldReturnOk() throws Exception {
-                // Given
-                doNothing().when(chatEntryService).updateAttachmentHash(1L, "test-hash");
-
-                // When & Then
-                mockMvc.perform(put("/api/chat-entries/1/attachment").param("attachmentHash",
-                                "test-hash")).andExpect(status().isOk());
-
-                verify(chatEntryService).updateAttachmentHash(1L, "test-hash");
         }
 
         @Test

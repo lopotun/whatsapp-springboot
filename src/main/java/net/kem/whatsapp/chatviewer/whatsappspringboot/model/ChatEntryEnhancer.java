@@ -3,6 +3,7 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 import jakarta.annotation.Nullable;
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -41,7 +42,7 @@ public class ChatEntryEnhancer {
     private static ChatEntry.Type determineType(ChatEntry chatEntry) {
         ChatEntry.Type res = ChatEntry.Type.UNKNOWN;
         String fileName = chatEntry.getFileName();
-        if (fileName != null && !fileName.isEmpty()) {
+        if (StringUtils.hasText(fileName)) {
             String extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
             res = switch (extension) {
                 case ".jpg", ".jpeg", ".png" -> ChatEntry.Type.IMAGE;
@@ -77,7 +78,7 @@ public class ChatEntryEnhancer {
                 DateTimeFormatter.ofPattern("M/d/yyyy, HH:mm"),
                 DateTimeFormatter.ofPattern("MM/dd/yyyy, HH:mm")
             };
-            
+
             for (DateTimeFormatter formatter : alternativeFormatters) {
                 try {
                     return LocalDateTime.parse(timestampString, formatter);
@@ -85,9 +86,9 @@ public class ChatEntryEnhancer {
                     // Continue to next formatter
                 }
             }
-            
+
             // If all formats fail, return null or throw a more descriptive exception
-            throw new IllegalArgumentException("Unable to parse timestamp: " + timestampString + 
+            throw new IllegalArgumentException("Unable to parse timestamp: " + timestampString +
                 ". Supported formats: M/d/yy, HH:mm, M/d/yy, H:mm, MM/dd/yy, HH:mm, M/d/yyyy, HH:mm, MM/dd/yyyy, HH:mm");
         }
     }

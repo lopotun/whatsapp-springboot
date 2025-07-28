@@ -142,11 +142,11 @@ public class ChatEntryService {
             // Filter by hasAttachment
             if (hasAttachment != null) {
                 if (hasAttachment) {
-                    if (entry.getAttachmentHash() == null || entry.getAttachmentHash().isEmpty()) {
+                    if (entry.getFileName() == null || entry.getFileName().isEmpty()) {
                         return false;
                     }
                 } else {
-                    if (entry.getAttachmentHash() != null && !entry.getAttachmentHash().isEmpty()) {
+                    if (entry.getFileName() != null && !entry.getFileName().isEmpty()) {
                         return false;
                     }
                 }
@@ -312,13 +312,6 @@ public class ChatEntryService {
     }
 
     /**
-     * Find entries by attachment hash
-     */
-    public List<ChatEntryEntity> findByAttachmentHash(String attachmentHash) {
-        return chatEntryRepository.findByAttachmentHash(attachmentHash);
-    }
-
-    /**
      * Get statistics
      */
     public long countByAuthor(Long userId, String author) {
@@ -331,21 +324,6 @@ public class ChatEntryService {
 
     public long countByDateRange(Long userId, LocalDateTime start, LocalDateTime end) {
         return chatEntryRepository.countByUserIdAndLocalDateTimeBetween(userId, start, end);
-    }
-
-    /**
-     * Update attachment hash for a chat entry
-     */
-    public void updateAttachmentHash(Long chatEntryId, String attachmentHash) {
-        Optional<ChatEntryEntity> optional = chatEntryRepository.findById(chatEntryId);
-        if (optional.isPresent()) {
-            ChatEntryEntity entity = optional.get();
-            entity.setAttachmentHash(attachmentHash);
-            chatEntryRepository.save(entity);
-            log.debug("Updated attachment hash for chat entry: {}", chatEntryId);
-        } else {
-            log.warn("Chat entry not found for ID: {}", chatEntryId);
-        }
     }
 
     /**

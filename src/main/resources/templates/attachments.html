@@ -297,6 +297,12 @@
                                     <div class="stats-label">Active</div>
                                 </div>
                             </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" id="totalFileSize">0 B</div>
+                                    <div class="stats-label">Total Size</div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Loading -->
@@ -321,6 +327,7 @@
                                                 <tr>
                                                     <th>Hash</th>
                                                     <th>Status</th>
+                                                    <th>File Size</th>
                                                     <th>Last Added</th>
                                                     <th>Actions</th>
                                                 </tr>
@@ -459,7 +466,7 @@
                 if (attachments.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="4" class="text-center py-4">
+                            <td colspan="5" class="text-center py-4">
                                 <i class="bi bi-inbox display-4 text-muted mb-3"></i>
                                 <p class="text-muted">No attachments found</p>
                             </td>
@@ -481,6 +488,7 @@
                                 </button>
                             </td>
                             <td>${statusBadge}</td>
+                            <td>${Utils.formatFileSize(att.fileSize || 0)}</td>
                             <td>${Utils.formatDate(att.lastAddedTimestamp)}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary" onclick="viewAttachmentDetails('${att.hash}')">
@@ -502,9 +510,11 @@
             function updateStatistics() {
                 const totalAttachments = currentAttachments.length;
                 const activeAttachments = currentAttachments.filter(att => att.status === 1).length;
+                const totalFileSize = currentAttachments.reduce((sum, att) => sum + (att.fileSize || 0), 0);
 
                 document.getElementById('totalAttachments').textContent = totalAttachments;
                 document.getElementById('activeAttachments').textContent = activeAttachments;
+                document.getElementById('totalFileSize').textContent = Utils.formatFileSize(totalFileSize);
             }
 
             function getStatusBadge(status) {
@@ -544,6 +554,7 @@
                                     <table class="table table-sm">
                                         <tr><td><strong>Hash:</strong></td><td><code>${attachment.hash}</code></td></tr>
                                         <tr><td><strong>Status:</strong></td><td>${getStatusBadge(attachment.status)}</td></tr>
+                                        <tr><td><strong>File Size:</strong></td><td>${Utils.formatFileSize(attachment.fileSize || 0)}</td></tr>
                                         <tr><td><strong>Last Added:</strong></td><td>${Utils.formatDate(attachment.lastAddedTimestamp)}</td></tr>
                                     </table>
                                 </div>

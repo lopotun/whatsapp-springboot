@@ -1,11 +1,11 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,9 +15,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -31,7 +29,8 @@ import lombok.NoArgsConstructor;
                 @Index(name = "idx_chat_entries_type", columnList = "type"),
                 @Index(name = "idx_chat_entries_local_date_time", columnList = "local_date_time"),
                 @Index(name = "idx_chat_entries_author_type", columnList = "author, type"),
-                @Index(name = "idx_chat_entries_date_author", columnList = "local_date_time, author"),
+                @Index(name = "idx_chat_entries_date_author",
+                        columnList = "local_date_time, author"),
                 @Index(name = "idx_chat_entries_created_at", columnList = "created_at"),
                 @Index(name = "idx_chat_entries_user_id", columnList = "user_id"),
                 @Index(name = "idx_chat_entries_chat_id", columnList = "chat_id"),
@@ -65,16 +64,6 @@ public class ChatEntryEntity {
     @Column(name = "local_date_time")
     private LocalDateTime localDateTime;
 
-    @Column(name = "attachment_hash")
-    private String attachmentHash;
-
-    // Many-to-many relationship with Location
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "chat_entry_locations", joinColumns = @JoinColumn(name = "chat_entry_id"),
-            inverseJoinColumns = @JoinColumn(name = "location_id"))
-    @JsonIgnore
-    private List<Location> locations;
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -91,13 +80,14 @@ public class ChatEntryEntity {
     @Column(name = "chat_id", nullable = false)
     private String chatId;
 
+    @OneToMany(mappedBy = "chatEntry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<Location> locations;
+
     @PrePersist
     protected void onCreate() {
         if (author == null || author.trim().isEmpty()) {
             author = "Unknown";
-        }
-        if (locations == null) {
-            locations = new ArrayList<>();
         }
     }
 
@@ -106,16 +96,13 @@ public class ChatEntryEntity {
         return ChatEntryEntity.builder().timestamp(chatEntry.getTimestamp())
                 .payload(chatEntry.getPayload()).author(chatEntry.getAuthor())
                 .fileName(chatEntry.getFileName()).type(chatEntry.getType())
-                .localDateTime(chatEntry.getLocalDateTime())
-                .attachmentHash(chatEntry.getAttachmentHash()).userId(userId).chatId(chatId)
-                .build();
+                .localDateTime(chatEntry.getLocalDateTime()).userId(userId).chatId(chatId).build();
     }
 
     // Convert entity back to ChatEntry model
     public ChatEntry toChatEntry() {
         ChatEntry chatEntry = ChatEntry.builder().timestamp(timestamp).payload(payload)
                 .author(author).fileName(fileName).type(type).localDateTime(localDateTime).build();
-        chatEntry.setAttachmentHash(attachmentHash);
         return chatEntry;
     }
 }
