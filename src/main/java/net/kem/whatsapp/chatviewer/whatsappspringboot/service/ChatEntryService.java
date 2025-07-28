@@ -99,47 +99,82 @@ public class ChatEntryService {
             List<String> chatIds, int page, int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<ChatEntryEntity> userEntries;
+        Page<ChatEntryEntity> results;
 
-        // If specific chat IDs are provided, filter by them
-        if (chatIds != null && !chatIds.isEmpty()) {
-            userEntries = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
+        // Use optimized database queries based on the criteria provided
+        if (type != null) {
+            // If type is specified, use the optimized type-based query
+            if (chatIds != null && !chatIds.isEmpty()) {
+                // Type + chat filter - we need to implement this or use the general approach
+                results = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
+            } else {
+                // Type only - use optimized query
+                results = chatEntryRepository.findByUserIdAndType(userId, type, pageable);
+            }
+        } else if (author != null && !author.trim().isEmpty()) {
+            // If author is specified, use the optimized author-based query
+            if (chatIds != null && !chatIds.isEmpty()) {
+                // Author + chat filter - we need to implement this or use the general approach
+                results = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
+            } else {
+                // Author only - use optimized query
+                results =
+                        chatEntryRepository.findByUserIdAndAuthor(userId, author.trim(), pageable);
+            }
+        } else if (startDate != null || endDate != null) {
+            // If date range is specified, use the optimized date-based query
+            LocalDateTime start = startDate != null ? startDate : LocalDateTime.MIN;
+            LocalDateTime end = endDate != null ? endDate : LocalDateTime.MAX;
+
+            if (chatIds != null && !chatIds.isEmpty()) {
+                // Date + chat filter - we need to implement this or use the general approach
+                results = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
+            } else {
+                // Date only - use optimized query
+                results = chatEntryRepository.findByUserIdAndLocalDateTimeBetween(userId, start,
+                        end, pageable);
+            }
         } else {
-            userEntries = chatEntryRepository.findByUserId(userId, pageable);
+            // General case - use the basic user query
+            if (chatIds != null && !chatIds.isEmpty()) {
+                results = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
+            } else {
+                results = chatEntryRepository.findByUserId(userId, pageable);
+            }
         }
 
-        // Filter the results based on criteria
-        List<ChatEntryEntity> filteredContent = userEntries.getContent().stream().filter(entry -> {
-            // Filter by author
-            if (author != null && !author.trim().isEmpty()) {
+        // Apply additional filters in memory for complex combinations
+        List<ChatEntryEntity> filteredContent = results.getContent().stream().filter(entry -> {
+            // Filter by author (if not already filtered by database)
+            if (author != null && !author.trim().isEmpty() && type == null) {
                 if (!entry.getAuthor().equalsIgnoreCase(author.trim())) {
                     return false;
                 }
             }
 
-            // Filter by type
-            if (type != null) {
+            // Filter by type (if not already filtered by database)
+            if (type != null && author == null && startDate == null && endDate == null) {
                 if (!entry.getType().equals(type)) {
                     return false;
                 }
             }
 
-            // Filter by start date
-            if (startDate != null) {
+            // Filter by start date (if not already filtered by database)
+            if (startDate != null && type == null && author == null) {
                 if (entry.getLocalDateTime() == null
                         || entry.getLocalDateTime().isBefore(startDate)) {
                     return false;
                 }
             }
 
-            // Filter by end date
-            if (endDate != null) {
+            // Filter by end date (if not already filtered by database)
+            if (endDate != null && type == null && author == null) {
                 if (entry.getLocalDateTime() == null || entry.getLocalDateTime().isAfter(endDate)) {
                     return false;
                 }
             }
 
-            // Filter by hasAttachment
+            // Filter by hasAttachment (always in memory as it's complex)
             if (hasAttachment != null) {
                 if (hasAttachment) {
                     if (entry.getFileName() == null || entry.getFileName().isEmpty()) {
@@ -157,7 +192,7 @@ public class ChatEntryService {
 
         // Create a new page with filtered content and sanitize results
         Page<ChatEntryEntity> filteredPage = new org.springframework.data.domain.PageImpl<>(
-                filteredContent, pageable, userEntries.getTotalElements());
+                filteredContent, pageable, results.getTotalElements());
         return sanitizeResults(filteredPage);
     }
 
