@@ -3,8 +3,11 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.controller;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.User;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.service.AttachmentService;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatEntryService;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +36,7 @@ public class ChatEntryController {
 
     private final ChatEntryService chatEntryService;
     private final UserService userService;
+    private final AttachmentService attachmentService;
 
     /**
      * Get current user ID from authentication
@@ -245,5 +250,35 @@ public class ChatEntryController {
         Long userId = getCurrentUserId();
         List<String> chatIds = chatEntryService.getChatIdsForUser(userId);
         return ResponseEntity.ok(chatIds);
+    }
+
+    /**
+     * Download attachment for a chat entry (user-specific)
+     */
+    @GetMapping("/{id}/download")
+    public ResponseEntity<Resource> downloadAttachment(@PathVariable Long id) {
+        Long userId = getCurrentUserId();
+        Optional<ChatEntryEntity> chatEntry = chatEntryService.findById(id, userId);
+
+        if (chatEntry.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        ChatEntryEntity entry = chatEntry.get();
+        if (entry.getFileName() == null || entry.getFileName().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            Resource resource = chatEntryService.downloadAttachment(entry.getId(), userId);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + entry.getFileName() + "\"")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM).body(resource);
+        } catch (Exception e) {
+            log.error("Error downloading attachment for chat entry {}: {}", id, e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

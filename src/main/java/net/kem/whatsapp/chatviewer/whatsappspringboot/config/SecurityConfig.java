@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .requestMatchers("/admin/**").hasRole("ADMIN").anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/dashboard", true)
                         .failureUrl("/login?error=true").permitAll())
+                .httpBasic(basic -> basic.realmName("WhatsApp Chat Viewer"))
                 .logout(logout -> logout.logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
                         .logoutSuccessUrl("/login?logout=true").invalidateHttpSession(true)
                         .deleteCookies("JSESSIONID").permitAll())

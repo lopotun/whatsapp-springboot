@@ -27,6 +27,11 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
         List<Location> findByChatEntryId(Long chatEntryId);
 
         /**
+         * Find locations by chat entry ID and user ID (user-scoped)
+         */
+        List<Location> findByChatEntryIdAndUserId(Long chatEntryId, Long userId);
+
+        /**
          * Find attachment IDs by user ID
          */
         @Query("SELECT DISTINCT l.attachment.id FROM Location l WHERE l.userId = :userId")

@@ -1,10 +1,15 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -12,7 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Location;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.ChatEntryRepository;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.LocationRepository;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -21,10 +28,15 @@ import lombok.extern.slf4j.Slf4j;
 public class ChatEntryService {
 
     private final ChatEntryRepository chatEntryRepository;
+    private final LocationRepository locationRepository;
+    private final FileNamingService fileNamingService;
 
     @Autowired
-    public ChatEntryService(ChatEntryRepository chatEntryRepository) {
+    public ChatEntryService(ChatEntryRepository chatEntryRepository,
+            LocationRepository locationRepository, FileNamingService fileNamingService) {
         this.chatEntryRepository = chatEntryRepository;
+        this.locationRepository = locationRepository;
+        this.fileNamingService = fileNamingService;
     }
 
     /**
@@ -416,5 +428,60 @@ public class ChatEntryService {
                 .replaceAll("(?i)token:\\s*[a-f0-9]+", "token: [REDACTED]");
 
         return sanitized;
+    }
+
+    /**
+     * Download attachment for a chat entry (user-specific)
+     */
+    public Resource downloadAttachment(Long chatEntryId, Long userId) throws IOException {
+        // Find the location for this chat entry using the Location entity (user-scoped)
+        // Since we know there's only one location per chat entry, we can optimize the query
+        Optional<Location> locationOpt = locationRepository
+                .findByChatEntryIdAndUserId(chatEntryId, userId).stream().findFirst();
+
+        if (locationOpt.isEmpty()) {
+            throw new IOException("No file location found for chat entry: " + chatEntryId);
+        }
+
+        Location location = locationOpt.get();
+
+        String fileName = location.getRealFilename();
+
+        if (fileName == null || fileName.isEmpty()) {
+            throw new IOException("File name not found for chat entry: " + chatEntryId);
+        }
+
+        // Get the attachment hash
+        String attachmentHash = location.getAttachment().getHash();
+        if (attachmentHash == null || attachmentHash.isEmpty()) {
+            throw new IOException("Attachment hash not found for chat entry: " + chatEntryId);
+        }
+
+        // Generate the file path using the configured multimedia storage path
+        Path foundFile = fileNamingService.generateFilePathFromHash(attachmentHash, fileName);
+
+        if (foundFile == null) {
+            throw new IOException("Could not generate file path for: " + fileName);
+        }
+
+        // Check if the file actually exists
+        if (!Files.exists(foundFile)) {
+            throw new IOException("File not found at path: " + foundFile);
+        }
+
+        return new FileSystemResource(foundFile.toFile());
+    }
+
+    /**
+     * Recursively search for a file by name in a directory
+     */
+    private Path findFileByName(Path directory, String fileName) throws IOException {
+        if (!Files.exists(directory) || !Files.isDirectory(directory)) {
+            return null;
+        }
+
+        return Files.walk(directory).filter(Files::isRegularFile)
+                .filter(path -> path.getFileName().toString().equals(fileName)).findFirst()
+                .orElse(null);
     }
 }

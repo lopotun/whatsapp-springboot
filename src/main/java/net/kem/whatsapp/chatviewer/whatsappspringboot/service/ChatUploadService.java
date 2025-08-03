@@ -6,6 +6,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -23,6 +25,8 @@ import org.springframework.web.multipart.MultipartFile;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEnhancer;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Location;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.LocationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,6 +50,7 @@ public class ChatUploadService {
     private final ChatService chatService;
     private final FileNamingService fileNamingService;
     private final AttachmentService attachmentService;
+    private final LocationRepository locationRepository;
 
     /**
      * Generate or find existing chat ID based on filename and user If the same filename was
@@ -165,7 +170,7 @@ public class ChatUploadService {
         if (isReupload) {
             log.info("Detected re-upload of existing chat: {}. Performing incremental update.",
                     chatId);
-            savedEntries = performIncrementalUpdate(chatEntries, userId, chatId);
+            savedEntries = performIncrementalUpdate(chatEntries, userId, chatId, new HashMap<>());
         } else {
             // New upload - save all entries
             savedEntries = chatEntryService.saveChatEntries(chatEntries, userId, chatId);
@@ -280,14 +285,14 @@ public class ChatUploadService {
         if (isReupload) {
             log.info("Detected re-upload of existing chat: {}. Performing incremental update.",
                     chatId);
-            savedEntries = performIncrementalUpdate(chatEntries, userId, chatId);
+            savedEntries = performIncrementalUpdate(chatEntries, userId, chatId, filenameToHashMap);
         } else {
             // New upload - save all entries
             savedEntries = chatEntryService.saveChatEntries(chatEntries, userId, chatId);
         }
 
         // Create locations for chat entries that have attachments
-        createLocationsForChatEntries(savedEntries, userId);
+        createLocationsForChatEntries(savedEntries, userId, filenameToHashMap);
 
         long totalTime = System.currentTimeMillis() - startTime;
         log.info(
@@ -346,13 +351,16 @@ public class ChatUploadService {
 
     private String processMultimediaFile(ZipInputStream zis, String fileName, Long userId)
             throws IOException {
-        // Calculate hash while processing
+        // Calculate hash while processing and save file content
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] buffer = new byte[8192];
 
             int totalBytes = 0;
             int maxFileSize = 50 * 1024 * 1024; // 50MB limit per file
+
+            // Create a temporary buffer to store the file content
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
             int len;
             while ((len = zis.read(buffer)) > 0) {
@@ -365,6 +373,7 @@ public class ChatUploadService {
                 }
 
                 digest.update(buffer, 0, len);
+                baos.write(buffer, 0, len);
             }
 
             // Convert digest to hex string
@@ -375,6 +384,29 @@ public class ChatUploadService {
             }
 
             String contentHash = result.toString();
+            byte[] fileContent = baos.toByteArray();
+
+            // Save the file to the multimedia directory
+            try {
+                Path filePath = fileNamingService.generateFilePathFromHash(contentHash, fileName);
+
+                // Create parent directories if they don't exist
+                Path parentDir = filePath.getParent();
+                if (!Files.exists(parentDir)) {
+                    Files.createDirectories(parentDir);
+                    log.debug("Created directory: {}", parentDir);
+                }
+
+                // Write the file content
+                Files.write(filePath, fileContent);
+                log.info("Saved multimedia file: {} to path: {} (size: {} bytes)", fileName,
+                        filePath, totalBytes);
+
+            } catch (Exception e) {
+                log.error("Failed to save multimedia file to filesystem: {} - {}", fileName,
+                        e.getMessage());
+                // Continue processing even if file save fails
+            }
 
             // Save attachment information to database
             try {
@@ -469,7 +501,7 @@ public class ChatUploadService {
      * that weren't in the database
      */
     private List<ChatEntryEntity> performIncrementalUpdate(List<ChatEntry> newEntries, Long userId,
-            String chatId) {
+            String chatId, Map<String, String> filenameToHashMap) {
         log.info("Starting incremental update for chat: {} with {} new entries", chatId,
                 newEntries.size());
 
@@ -532,7 +564,7 @@ public class ChatUploadService {
                 .findByUserIdAndChatId(userId, chatId, 0, Integer.MAX_VALUE).getContent();
 
         // Create locations for chat entries that have attachments
-        createLocationsForChatEntries(finalEntries, userId);
+        createLocationsForChatEntries(finalEntries, userId, filenameToHashMap);
 
         log.info(
                 "Incremental update completed. Total entries: {} (kept: {}, added: {}, removed: {})",
@@ -563,6 +595,44 @@ public class ChatUploadService {
                 }
             }
         }
+    }
+
+    /**
+     * Create locations for chat entries that have attachments
+     */
+    private void createLocationsForChatEntries(List<ChatEntryEntity> chatEntries, Long userId,
+            Map<String, String> filenameToHashMap) {
+        log.info("Creating locations for {} chat entries with {} filename mappings",
+                chatEntries.size(), filenameToHashMap.size());
+
+        for (ChatEntryEntity chatEntry : chatEntries) {
+            if (chatEntry.getFileName() != null && !chatEntry.getFileName().isEmpty()) {
+                log.debug("Processing chat entry {} with filename: {}", chatEntry.getId(),
+                        chatEntry.getFileName());
+                try {
+                    // Use the AttachmentService to properly link the chat entry to the location
+                    Location location = attachmentService
+                            .saveLocationForChatEntry(chatEntry.getFileName(), userId, chatEntry);
+
+                    if (location != null) {
+                        log.info(
+                                "Successfully linked chat entry {} to location {} for filename: {}",
+                                chatEntry.getId(), location.getId(), chatEntry.getFileName());
+                    } else {
+                        log.warn(
+                                "Failed to create location for chat entry {} with filename: {} - no attachment found",
+                                chatEntry.getId(), chatEntry.getFileName());
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to create location for chat entry with filename: {} - {}",
+                            chatEntry.getFileName(), e.getMessage(), e);
+                    // Continue processing even if location creation fails
+                }
+            } else {
+                log.debug("Skipping chat entry {} - no filename", chatEntry.getId());
+            }
+        }
+        log.info("Finished creating locations for {} chat entries", chatEntries.size());
     }
 
     /**

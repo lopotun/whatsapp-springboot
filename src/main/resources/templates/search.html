@@ -503,7 +503,9 @@
         });
 
         function loadUserChats() {
-            fetch('/api/chat-entries/chats')
+            fetch('/api/chat-entries/chats', {
+                credentials: 'same-origin'
+            })
                 .then(response => response.json())
                 .then(chatIds => {
                     const chatSelect = document.getElementById('chatIds');
@@ -581,7 +583,9 @@
                 url = `/api/chat-entries/search?${params.toString()}`;
             }
 
-            fetch(url)
+            fetch(url, {
+                credentials: 'same-origin'
+            })
                 .then(response => response.json())
                 .then(data => {
                     Utils.hideLoading('loadingResults');
@@ -612,23 +616,38 @@
 
             let html = '';
             data.content.forEach(entry => {
+                const chatName = formatChatId(entry.chatId);
                 html += `
                     <div class="chat-entry">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
-                                <span class="author">${entry.author}</span>
-                                <span class="badge ${entry.type.toLowerCase()}">${entry.type}</span>
-                                ${entry.attachmentHash ? '<span class="badge bg-secondary">Has Attachment</span>' : ''}
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="author">${entry.author}</span>
+                                    <span class="badge ${entry.type.toLowerCase()}">${entry.type}</span>
+                                    ${entry.attachmentHash ? '<span class="badge bg-secondary">Has Attachment</span>' : ''}
+                                </div>
+                                <div class="chat-info">
+                                    <small class="text-muted">
+                                        <i class="bi bi-chat-dots me-1"></i>
+                                        ${chatName}
+                                    </small>
+                                </div>
                             </div>
                             <small class="timestamp">${Utils.formatDate(entry.timestamp)}</small>
                         </div>
                         <div class="content">${escapeHtml(entry.payload)}</div>
-                        ${entry.attachmentHash ? `
+                        ${entry.fileName ? `
                             <div class="mt-2">
-                                <small class="text-muted">
-                                    <i class="bi bi-paperclip me-1"></i>
-                                    Attachment: <code>${entry.attachmentHash}</code>
-                                </small>
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-paperclip me-1"></i>
+                                        Attachment: <strong>${entry.fileName}</strong>
+                                    </small>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="downloadAttachment('${entry.fileName}', ${entry.id})">
+                                        <i class="bi bi-download me-1"></i>
+                                        Download
+                                    </button>
+                                </div>
                             </div>
                         ` : ''}
                     </div>
@@ -777,6 +796,54 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function downloadAttachment(fileName, chatEntryId) {
+            // Show loading state
+            const button = event.target.closest('button');
+            const originalContent = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Downloading...';
+            button.disabled = true;
+
+            // Make the download request with credentials
+            fetch(`/api/chat-entries/${chatEntryId}/download`, {
+                credentials: 'same-origin'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    // Reset button
+                    button.innerHTML = originalContent;
+                    button.disabled = false;
+
+                    // Show success message
+                    Utils.showAlert('File downloaded successfully!', 'success');
+                })
+                .catch(error => {
+                    console.error('Download failed:', error);
+
+                    // Reset button
+                    button.innerHTML = originalContent;
+                    button.disabled = false;
+
+                    // Show error message
+                    Utils.showAlert('Download failed: ' + error.message, 'danger');
+                });
         }
     </script>
 </body>
