@@ -143,7 +143,8 @@ public class ChatEntryController {
      */
     @GetMapping("/author/{author}")
     public ResponseEntity<List<ChatEntryEntity>> findByAuthor(@PathVariable String author) {
-        List<ChatEntryEntity> results = chatEntryService.findByAuthor(author);
+        Long userId = getCurrentUserId();
+        List<ChatEntryEntity> results = chatEntryService.findByAuthor(userId, author);
         return ResponseEntity.ok(results);
     }
 
@@ -152,7 +153,8 @@ public class ChatEntryController {
      */
     @GetMapping("/type/{type}")
     public ResponseEntity<List<ChatEntryEntity>> findByType(@PathVariable ChatEntry.Type type) {
-        List<ChatEntryEntity> results = chatEntryService.findByType(type);
+        Long userId = getCurrentUserId();
+        List<ChatEntryEntity> results = chatEntryService.findByType(userId, type);
         return ResponseEntity.ok(results);
     }
 
@@ -164,7 +166,8 @@ public class ChatEntryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
 
-        List<ChatEntryEntity> results = chatEntryService.findByDateRange(start, end);
+        Long userId = getCurrentUserId();
+        List<ChatEntryEntity> results = chatEntryService.findByDateRange(userId, start, end);
         return ResponseEntity.ok(results);
     }
 
@@ -175,7 +178,8 @@ public class ChatEntryController {
     public ResponseEntity<List<ChatEntryEntity>> findByAuthorAndType(@PathVariable String author,
             @PathVariable ChatEntry.Type type) {
 
-        List<ChatEntryEntity> results = chatEntryService.findByAuthorAndType(author, type);
+        Long userId = getCurrentUserId();
+        List<ChatEntryEntity> results = chatEntryService.findByAuthorAndType(userId, author, type);
         return ResponseEntity.ok(results);
     }
 
@@ -188,8 +192,9 @@ public class ChatEntryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
 
+        Long userId = getCurrentUserId();
         List<ChatEntryEntity> results =
-                chatEntryService.findByAuthorAndDateRange(author, start, end);
+                chatEntryService.findByAuthorAndDateRange(userId, author, start, end);
         return ResponseEntity.ok(results);
     }
 
@@ -202,7 +207,8 @@ public class ChatEntryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
 
-        List<ChatEntryEntity> results = chatEntryService.findByTypeAndDateRange(type, start, end);
+        Long userId = getCurrentUserId();
+        List<ChatEntryEntity> results = chatEntryService.findByTypeAndDateRange(userId, type, start, end);
         return ResponseEntity.ok(results);
     }
 

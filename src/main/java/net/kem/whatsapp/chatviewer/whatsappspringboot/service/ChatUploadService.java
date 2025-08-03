@@ -1,7 +1,6 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,23 +9,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Attachment;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEnhancer;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Location;
-import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.LocationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,346 +36,287 @@ public class ChatUploadService {
 
     private static final Pattern TIMESTAMP_PATTERN =
             Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s\\d{1,2}:\\d{2})\\s-\\s");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("M/d/yy, HH:mm");
     private static final long MAX_FILE_SIZE = 5 * 100 * 1024 * 1024; // 500MB limit
     private static final int MAX_ENTRIES = 1000; // Limit number of entries to prevent infinite
-                                                 // loops
     private static final int UPLOAD_REQUEST_TIMEOUT = 20 * 60 * 1000; // Limit number of entries per
-                                                                      // file to prevent infinite
-                                                                      // loops
     private static final int MAX_ENTRIES_PER_ZIP = 1000; // Limit number of entries per zip to
-                                                         // prevent infinite loops
 
     private final ChatEntryService chatEntryService;
     private final ChatService chatService;
     private final FileNamingService fileNamingService;
     private final AttachmentService attachmentService;
-    private final LocationRepository locationRepository;
 
     /**
-     * Generate or find existing chat ID based on filename and user If the same filename was
-     * uploaded before by the same user, return the existing chat ID
+     * Generate a unique chat ID based on the original filename and user ID
      */
     public String generateChatId(String originalFileName, Long userId) {
-        // Create a deterministic chat ID based on filename and userId (without timestamp and UUID)
-        String filenameHash = originalFileName.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
-        String baseChatId = "user" + userId + "_" + filenameHash;
-
-        // Check if this user already has a chat with this filename
-        List<String> existingChatIds = chatEntryService.getChatIdsForUser(userId);
-
-        for (String existingChatId : existingChatIds) {
-            // Check for both new format (userX_filename) and old format (filename only)
-            if (existingChatId.startsWith(baseChatId + "_")
-                    || existingChatId.startsWith(filenameHash + "_")) {
-                log.info("Found existing chat ID: {} for filename: {} and user: {}", existingChatId,
-                        originalFileName, userId);
-                return existingChatId;
-            }
+        String baseName = originalFileName;
+        if (originalFileName.contains(".")) {
+            baseName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
         }
 
-        // No existing chat found, create a new one with timestamp and UUID
-        // Generate a unique chat ID that doesn't exist in the database
-        String newChatId;
-        int attempts = 0;
-        do {
-            // Add a small delay to ensure uniqueness if called multiple times quickly
-            if (attempts > 0) {
-                try {
-                    Thread.sleep(1);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
+        // Remove any non-alphanumeric characters and replace with underscores
+        baseName = baseName.replaceAll("[^a-zA-Z0-9]", "_");
 
-            String timestamp = String.valueOf(System.currentTimeMillis());
-            String uuid = UUID.randomUUID().toString().substring(0, 12); // Use more characters for
-                                                                         // uniqueness
-            newChatId = baseChatId + "_" + timestamp + "_" + uuid;
-            attempts++;
+        // Add timestamp to ensure uniqueness
+        String timestamp =
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 
-            // Safety check to prevent infinite loop
-            if (attempts > 10) {
-                log.error("Failed to generate unique chat ID after {} attempts for filename: {}",
-                        attempts, originalFileName);
-                throw new RuntimeException("Unable to generate unique chat ID");
-            }
-        } while (chatService.chatExists(userId, newChatId));
-
-        log.info("Generated new unique chat ID: {} for filename: {} and user: {} (attempts: {})",
-                newChatId, originalFileName, userId, attempts);
-        return newChatId;
+        // Add user ID to prevent conflicts between users
+        return String.format("user%d_%s_%s", userId, baseName, timestamp);
     }
 
     /**
-     * Process and upload a text chat file
+     * Upload and process a text file containing WhatsApp chat data
      */
+    @Transactional
     public UploadResult uploadTextFile(MultipartFile file, Long userId) {
-        String originalFileName = file.getOriginalFilename();
-        if (originalFileName == null) {
-            throw new IllegalArgumentException("Cannot get original filename");
-        }
+        log.info("Starting text file upload for user: {} with file: {}", userId,
+                file.getOriginalFilename());
 
-        String chatId = generateChatId(originalFileName, userId);
-        log.info("Processing text file: {} with chatId: {} for user: {}", originalFileName, chatId,
-                userId);
+        UploadResult.UploadResultBuilder resultBuilder = UploadResult.builder()
+                .originalFileName(file.getOriginalFilename()).fileType("text").success(false);
 
-        // Check if this is a re-upload of the same file
-        boolean isReupload = chatService.chatExists(userId, chatId);
+        try {
+            // Validate file size
+            if (file.getSize() > MAX_FILE_SIZE) {
+                String errorMsg =
+                        "File size exceeds maximum allowed size of " + MAX_FILE_SIZE + " bytes";
+                log.warn("File size validation failed for user: {} - {}", userId, errorMsg);
+                return resultBuilder.errorMessage(errorMsg).build();
+            }
 
-        List<ChatEntry> chatEntries = new ArrayList<>();
+            // Generate unique chat ID
+            String chatId = generateChatId(file.getOriginalFilename(), userId);
+            resultBuilder.chatId(chatId);
 
-        try (BufferedReader reader =
-                new BufferedReader(new InputStreamReader(file.getInputStream()))) {
-            StringBuilder currentEntry = new StringBuilder();
-            String line;
+            // Parse chat entries from the text file
+            List<ChatEntry> chatEntries = new ArrayList<>();
+            Map<String, String> filenameToHashMap = new HashMap<>();
 
-            while ((line = reader.readLine()) != null) {
-                if (isNewEntry(line)) {
-                    if (!currentEntry.isEmpty()) {
-                        ChatEntry entry = parseChatEntry(currentEntry.toString());
-                        ChatEntryEnhancer.enhance(entry, true, true);
-                        chatEntries.add(entry);
-                        currentEntry.setLength(0);
+            try (InputStream inputStream = file.getInputStream();
+                    BufferedReader reader =
+                            new BufferedReader(new InputStreamReader(inputStream))) {
+
+                String line;
+                StringBuilder currentEntry = new StringBuilder();
+                int entryCount = 0;
+
+                while ((line = reader.readLine()) != null && entryCount < MAX_ENTRIES) {
+                    if (isNewEntry(line)) {
+                        // Process the previous entry if it exists
+                        if (currentEntry.length() > 0) {
+                            ChatEntry entry = parseChatEntry(currentEntry.toString());
+                            if (entry != null) {
+                                chatEntries.add(entry);
+                                entryCount++;
+                            }
+                        }
+                        // Start new entry
+                        currentEntry = new StringBuilder(line);
+                    } else {
+                        // Continue the current entry
+                        currentEntry.append("\n").append(line);
                     }
                 }
-                currentEntry.append(line).append("\n");
+
+                // Process the last entry
+                if (currentEntry.length() > 0 && entryCount < MAX_ENTRIES) {
+                    ChatEntry entry = parseChatEntry(currentEntry.toString());
+                    if (entry != null) {
+                        chatEntries.add(entry);
+                    }
+                }
             }
 
-            // Don't forget the last entry
-            if (!currentEntry.isEmpty()) {
-                ChatEntry entry = parseChatEntry(currentEntry.toString());
-                ChatEntryEnhancer.enhance(entry, true, true);
-                chatEntries.add(entry);
-            }
+            log.info("Parsed {} chat entries from text file for user: {}", chatEntries.size(),
+                    userId);
 
-        } catch (IOException e) {
-            throw new RuntimeException("Error processing chat file", e);
+            // Remove duplicates and save to database
+            List<ChatEntry> uniqueEntries = deduplicateEntries(chatEntries);
+            List<ChatEntryEntity> savedEntries =
+                    performIncrementalUpdate(uniqueEntries, userId, chatId, filenameToHashMap);
+
+            resultBuilder.totalEntries(savedEntries.size())
+                    .totalAttachments(filenameToHashMap.size()).success(true);
+
+            log.info("Successfully uploaded text file for user: {} - {} entries, {} attachments",
+                    userId, savedEntries.size(), filenameToHashMap.size());
+
+            return resultBuilder.build();
+
+        } catch (Exception e) {
+            String errorMsg = "Failed to process text file: " + e.getMessage();
+            log.error("Text file upload failed for user: {} - {}", userId, errorMsg, e);
+            return resultBuilder.errorMessage(errorMsg).build();
         }
-
-        // Remove duplicate entries before processing
-        int originalCount = chatEntries.size();
-        chatEntries = deduplicateEntries(chatEntries);
-        int finalCount = chatEntries.size();
-        int duplicatesRemoved = originalCount - finalCount;
-
-        if (duplicatesRemoved > 0) {
-            log.info(
-                    "Text file deduplication: removed {} duplicate entries ({} -> {} unique entries)",
-                    duplicatesRemoved, originalCount, finalCount);
-        }
-
-        // Handle re-upload with smart incremental update
-        List<ChatEntryEntity> savedEntries;
-        if (isReupload) {
-            log.info("Detected re-upload of existing chat: {}. Performing incremental update.",
-                    chatId);
-            savedEntries = performIncrementalUpdate(chatEntries, userId, chatId, new HashMap<>());
-        } else {
-            // New upload - save all entries
-            savedEntries = chatEntryService.saveChatEntries(chatEntries, userId, chatId);
-        }
-
-        log.info("Successfully processed {} entries for chat: {} user: {} (reupload: {})",
-                savedEntries.size(), chatId, userId, isReupload);
-
-        return UploadResult.builder().chatId(chatId).originalFileName(originalFileName)
-                .fileType("TXT").totalEntries(savedEntries.size()).totalAttachments(0) // Text files
-                                                                                       // don't have
-                                                                                       // attachments
-                .success(true).build();
     }
 
     /**
-     * Process and upload a ZIP file containing chat and multimedia files
+     * Upload and process a ZIP file containing chat data and multimedia files
      */
+    @Transactional
     public UploadResult uploadZipFile(MultipartFile file, Long userId) {
-        String originalFileName = file.getOriginalFilename();
-        if (originalFileName == null) {
-            throw new IllegalArgumentException("Cannot get original filename");
-        }
+        log.info("Starting ZIP file upload for user: {} with file: {}", userId,
+                file.getOriginalFilename());
 
-        // Add file size validation
-        long fileSize = file.getSize();
-        if (fileSize > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException("File size too large: " + fileSize
-                    + " bytes. Maximum allowed: " + MAX_FILE_SIZE + " bytes");
-        }
+        UploadResult.UploadResultBuilder resultBuilder = UploadResult.builder()
+                .originalFileName(file.getOriginalFilename()).fileType("zip").success(false);
 
-        String chatId = generateChatId(originalFileName, userId);
-        log.info("Processing ZIP file: {} with chatId: {} for user: {} (size: {} bytes)",
-                originalFileName, chatId, userId, fileSize);
+        try {
+            // Validate file size
+            if (file.getSize() > MAX_FILE_SIZE) {
+                String errorMsg =
+                        "File size exceeds maximum allowed size of " + MAX_FILE_SIZE + " bytes";
+                log.warn("File size validation failed for user: {} - {}", userId, errorMsg);
+                return resultBuilder.errorMessage(errorMsg).build();
+            }
 
-        // Check if this is a re-upload of the same file
-        boolean isReupload = chatService.chatExists(userId, chatId);
+            // Generate unique chat ID
+            String chatId = generateChatId(file.getOriginalFilename(), userId);
+            resultBuilder.chatId(chatId);
 
-        List<ChatEntry> chatEntries = new ArrayList<>();
-        List<String> extractedFiles = new ArrayList<>();
-        Map<String, String> filenameToHashMap = new HashMap<>();
+            List<ChatEntry> chatEntries = new ArrayList<>();
+            Map<String, String> filenameToHashMap = new HashMap<>();
+            List<String> extractedFiles = new ArrayList<>();
 
-        long startTime = System.currentTimeMillis();
-        int processedEntries = 0;
-        int maxEntries = 1000; // Limit number of entries to prevent infinite loops
+            try (ZipInputStream zis = new ZipInputStream(file.getInputStream())) {
+                ZipEntry entry;
+                int entryCount = 0;
 
-        try (ZipInputStream zis = new ZipInputStream(file.getInputStream())) {
-            ZipEntry entry;
-            InputStream chatTextStream = null;
-
-            while ((entry = zis.getNextEntry()) != null) {
-                String fileName = entry.getName();
-                processedEntries++;
-
-                // Check for too many entries (potential infinite loop)
-                if (processedEntries > maxEntries) {
-                    throw new RuntimeException("Too many entries in ZIP file: " + processedEntries
-                            + ". Maximum allowed: " + maxEntries);
-                }
-
-                // Add timeout check every 10 entries
-                if (processedEntries % 10 == 0) {
-                    long elapsed = System.currentTimeMillis() - startTime;
-                    if (elapsed > UPLOAD_REQUEST_TIMEOUT) { // 5 minutes timeout
-                        throw new RuntimeException("ZIP processing timeout after 5 minutes");
-                    }
-                    log.info("Processing ZIP entry {}/{}: {} (elapsed: {}ms)", processedEntries,
-                            "unknown", fileName, elapsed);
-                }
-
-                log.debug("Processing zip entry: {} (size: {} bytes)", fileName, entry.getSize());
-
-                if (isTextFile(fileName)) {
-                    // This is the chat text file - read it into memory for processing
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    byte[] buffer = new byte[1024];
-                    int len;
-                    while ((len = zis.read(buffer)) > 0) {
-                        baos.write(buffer, 0, len);
-                    }
-                    chatTextStream = new ByteArrayInputStream(baos.toByteArray());
-                    log.info("Found chat text file: {} (size: {} bytes)", fileName, baos.size());
-                } else if (!entry.isDirectory()) {
-                    // This is a multimedia file - extract and calculate hash
-                    log.info("Processing multimedia file: {} (size: {} bytes)", fileName,
-                            entry.getSize());
-                    String contentHash = processMultimediaFile(zis, fileName, userId);
-                    filenameToHashMap.put(fileName, contentHash);
+                while ((entry = zis.getNextEntry()) != null && entryCount < MAX_ENTRIES_PER_ZIP) {
+                    String fileName = entry.getName();
                     extractedFiles.add(fileName);
+
+                    try {
+                        if (isTextFile(fileName)) {
+                            // Process text file (chat data)
+                            processChatTextStream(zis, chatEntries, filenameToHashMap);
+                            entryCount++;
+                        } else {
+                            // Process multimedia file
+                            String contentHash = processMultimediaFile(zis, fileName, userId);
+                            if (contentHash != null) {
+                                filenameToHashMap.put(fileName, contentHash);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Error processing ZIP entry: {} - {}", fileName, e.getMessage());
+                        // Continue processing other entries even if one fails
+                    } finally {
+                        // Ensure the current entry is closed and ready for the next one
+                        try {
+                            zis.closeEntry();
+                        } catch (IOException e) {
+                            log.warn("Error closing ZIP entry: {} - {}", fileName, e.getMessage());
+                        }
+                    }
                 }
-
-                zis.closeEntry();
             }
 
-            // Process the chat text file if found
-            if (chatTextStream != null) {
-                processChatTextStream(chatTextStream, chatEntries, filenameToHashMap);
-                log.info("Processed chat text file, found {} entries", chatEntries.size());
-            } else {
-                log.warn("No text file found in the ZIP archive");
-            }
+            log.info("Processed ZIP file for user: {} - {} chat entries, {} attachments", userId,
+                    chatEntries.size(), filenameToHashMap.size());
 
-        } catch (IOException e) {
-            log.error("Error processing ZIP file: {}", e.getMessage(), e);
-            throw new RuntimeException("Error processing ZIP file", e);
+            // Remove duplicates and save to database
+            List<ChatEntry> uniqueEntries = deduplicateEntries(chatEntries);
+            List<ChatEntryEntity> savedEntries =
+                    performIncrementalUpdate(uniqueEntries, userId, chatId, filenameToHashMap);
+
+            resultBuilder.totalEntries(savedEntries.size())
+                    .totalAttachments(filenameToHashMap.size()).extractedFiles(extractedFiles)
+                    .success(true);
+
+            log.info("Successfully uploaded ZIP file for user: {} - {} entries, {} attachments",
+                    userId, savedEntries.size(), filenameToHashMap.size());
+
+            return resultBuilder.build();
+
+        } catch (Exception e) {
+            String errorMsg = "Failed to process ZIP file: " + e.getMessage();
+            log.error("ZIP file upload failed for user: {} - {}", userId, errorMsg, e);
+            return resultBuilder.errorMessage(errorMsg).build();
         }
-
-        // Note: Locations will be created after chat entries are saved to database
-
-        // Handle re-upload with smart incremental update
-        List<ChatEntryEntity> savedEntries;
-        if (isReupload) {
-            log.info("Detected re-upload of existing chat: {}. Performing incremental update.",
-                    chatId);
-            savedEntries = performIncrementalUpdate(chatEntries, userId, chatId, filenameToHashMap);
-        } else {
-            // New upload - save all entries
-            savedEntries = chatEntryService.saveChatEntries(chatEntries, userId, chatId);
-        }
-
-        // Create locations for chat entries that have attachments
-        createLocationsForChatEntries(savedEntries, userId, filenameToHashMap);
-
-        long totalTime = System.currentTimeMillis() - startTime;
-        log.info(
-                "Successfully processed {} entries and {} multimedia files for chat: {} user: {} in {}ms (reupload: {})",
-                savedEntries.size(), extractedFiles.size(), chatId, userId, totalTime, isReupload);
-
-        return UploadResult.builder().chatId(chatId).originalFileName(originalFileName)
-                .fileType("ZIP").totalEntries(savedEntries.size())
-                .totalAttachments(extractedFiles.size()).extractedFiles(extractedFiles)
-                .success(true).build();
     }
 
+    /**
+     * Process chat text stream and extract chat entries
+     */
     private void processChatTextStream(InputStream chatTextStream, List<ChatEntry> chatEntries,
-            Map<String, String> filenameToHashMap) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(chatTextStream))) {
-            StringBuilder currentEntry = new StringBuilder();
+            Map<String, String> filenameToHashMap) throws IOException {
+        // Use BufferedReader but don't let it close the underlying stream
+        BufferedReader reader = new BufferedReader(new InputStreamReader(chatTextStream) {
+            @Override
+            public void close() throws IOException {
+                // Don't close the underlying stream
+                // super.close(); // Commented out to prevent closing ZipInputStream
+            }
+        });
+
+        try {
             String line;
+            StringBuilder currentEntry = new StringBuilder();
 
             while ((line = reader.readLine()) != null) {
                 if (isNewEntry(line)) {
-                    if (!currentEntry.isEmpty()) {
+                    // Process the previous entry if it exists
+                    if (currentEntry.length() > 0) {
                         ChatEntry entry = parseChatEntry(currentEntry.toString());
-                        ChatEntryEnhancer.enhance(entry, true, true);
-                        chatEntries.add(entry);
-                        currentEntry.setLength(0);
+                        if (entry != null) {
+                            chatEntries.add(entry);
+                        }
                     }
+                    // Start new entry
+                    currentEntry = new StringBuilder(line);
+                } else {
+                    // Continue the current entry
+                    currentEntry.append("\n").append(line);
                 }
-                currentEntry.append(line).append("\n");
             }
 
-            // Don't forget the last entry
-            if (!currentEntry.isEmpty()) {
+            // Process the last entry
+            if (currentEntry.length() > 0) {
                 ChatEntry entry = parseChatEntry(currentEntry.toString());
-                ChatEntryEnhancer.enhance(entry, true, true);
-                chatEntries.add(entry);
+                if (entry != null) {
+                    chatEntries.add(entry);
+                }
             }
-
-        } catch (IOException e) {
-            throw new RuntimeException("Error processing chat text stream", e);
-        }
-
-        // Remove duplicate entries from the list
-        int originalCount = chatEntries.size();
-        List<ChatEntry> uniqueEntries = deduplicateEntries(chatEntries);
-        chatEntries.clear();
-        chatEntries.addAll(uniqueEntries);
-        int finalCount = chatEntries.size();
-        int duplicatesRemoved = originalCount - finalCount;
-
-        if (duplicatesRemoved > 0) {
-            log.info(
-                    "ZIP file deduplication: removed {} duplicate entries ({} -> {} unique entries)",
-                    duplicatesRemoved, originalCount, finalCount);
+        } finally {
+            // Don't close the reader as it would close the underlying stream
+            // reader.close(); // Commented out to prevent closing ZipInputStream
         }
     }
 
+    /**
+     * Process multimedia file from ZIP stream
+     */
     private String processMultimediaFile(ZipInputStream zis, String fileName, Long userId)
             throws IOException {
-        // Calculate hash while processing and save file content
+        log.debug("Processing multimedia file: {} for user: {}", fileName, userId);
+
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] buffer = new byte[8192];
-
-            int totalBytes = 0;
-            int maxFileSize = 50 * 1024 * 1024; // 50MB limit per file
-
-            // Create a temporary buffer to store the file content
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            int totalBytes = 0;
 
-            int len;
-            while ((len = zis.read(buffer)) > 0) {
-                totalBytes += len;
+            // Read file content - only read the current ZIP entry
+            while ((bytesRead = zis.read(buffer)) != -1) {
+                baos.write(buffer, 0, bytesRead);
+                totalBytes += bytesRead;
 
                 // Check file size limit
-                if (totalBytes > maxFileSize) {
-                    throw new RuntimeException("File too large: " + fileName + " (" + totalBytes
-                            + " bytes). Maximum allowed: " + maxFileSize + " bytes");
+                if (totalBytes > MAX_FILE_SIZE) {
+                    log.warn("Multimedia file too large: {} ({} bytes) for user: {}", fileName,
+                            totalBytes, userId);
+                    return null;
                 }
-
-                digest.update(buffer, 0, len);
-                baos.write(buffer, 0, len);
             }
 
-            // Convert digest to hex string
+            // Calculate SHA-256 hash
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(baos.toByteArray());
             byte[] hash = digest.digest();
             StringBuilder result = new StringBuilder();
             for (byte b : hash) {
@@ -410,8 +350,8 @@ public class ChatUploadService {
 
             // Save attachment information to database
             try {
-                attachmentService.saveAttachmentWithLocation(contentHash, fileName, userId,
-                        (long) totalBytes);
+                Attachment attachment =
+                        attachmentService.saveAttachment(contentHash, (long) totalBytes);
                 log.debug("Saved attachment: {} with hash: {} and size: {} bytes for user: {}",
                         fileName, contentHash, totalBytes, userId);
             } catch (Exception e) {
@@ -431,9 +371,46 @@ public class ChatUploadService {
     }
 
     /**
-     * Create locations for chat entries that have attachments
+     * Perform incremental update of chat entries, linking attachments
      */
+    private List<ChatEntryEntity> performIncrementalUpdate(List<ChatEntry> newEntries, Long userId,
+            String chatId, Map<String, String> filenameToHashMap) {
+        log.info("Performing incremental update for {} entries, user: {}, chat: {}",
+                newEntries.size(), userId, chatId);
 
+        List<ChatEntryEntity> savedEntries = new ArrayList<>();
+
+        for (ChatEntry entry : newEntries) {
+            try {
+                // Create chat entry entity
+                ChatEntryEntity entity = ChatEntryEntity.fromChatEntry(entry, userId, chatId);
+
+                // Link attachment if this entry has a filename that matches our hash map
+                if (entry.getFileName() != null
+                        && filenameToHashMap.containsKey(entry.getFileName())) {
+                    String hash = filenameToHashMap.get(entry.getFileName());
+
+                    // Find the attachment by hash
+                    attachmentService.findByHash(hash).ifPresent(attachment -> {
+                        entity.setAttachment(attachment);
+                        entity.setPath(attachmentService.generateFilePath(hash));
+                    });
+                }
+
+                // Save the entity
+                ChatEntryEntity savedEntity = chatEntryService.saveChatEntry(entity);
+                savedEntries.add(savedEntity);
+
+            } catch (Exception e) {
+                log.error("Failed to save chat entry: {} - {}", entry, e.getMessage(), e);
+                // Continue processing other entries
+            }
+        }
+
+        log.info("Successfully saved {} chat entries for user: {}, chat: {}", savedEntries.size(),
+                userId, chatId);
+        return savedEntries;
+    }
 
     private boolean isNewEntry(String line) {
         return TIMESTAMP_PATTERN.matcher(line).lookingAt();
@@ -452,7 +429,14 @@ public class ChatUploadService {
         java.util.regex.Matcher timestampMatcher = TIMESTAMP_PATTERN.matcher(entryText);
         if (timestampMatcher.find()) {
             String timestamp = timestampMatcher.group(1);
-            builder.timestamp(timestamp);
+
+            // Parse the timestamp to LocalDateTime
+            try {
+                LocalDateTime localDateTime = parseTimestamp(timestamp);
+                builder.localDateTime(localDateTime);
+            } catch (DateTimeParseException e) {
+                log.warn("Failed to parse timestamp: {}", timestamp);
+            }
 
             // Split remaining text
             String[] parts = entryText.substring(timestampMatcher.end()).split(": ", 2);
@@ -477,162 +461,47 @@ public class ChatUploadService {
                             builder.payload(payload);
                         }
                     }
-                    case 3 -> {
-                        // Multiple parts: attachment along with text
-                        String fileName = maybeWithAttachment[0];
-                        builder.fileName(fileName);
-                        // maybeWithAttachment[1] contains "file attached" string
-                        payload = maybeWithAttachment[2].substring(1); // Remove leading CR/LF
-                        builder.payload(payload);
-                    }
-                    default -> log.warn("Unexpected format in message: {}", entryText);
                 }
-            } else {
-                log.warn("Could not parse message {}", entryText);
+
+                // Determine message type
+                ChatEntry.Type type = determineMessageType(maybeWithAttachment.length > 1,
+                        maybeWithAttachment.length > 1 ? maybeWithAttachment[0] : payload);
+                builder.type(type);
+
+                return builder.build();
             }
         }
 
-        return builder.build();
+        return null;
     }
 
     /**
-     * Perform incremental update of chat entries - Keep existing entries that are still present in
-     * the new file - Remove existing entries that are no longer in the new file - Add new entries
-     * that weren't in the database
+     * Parse timestamp string to LocalDateTime
      */
-    private List<ChatEntryEntity> performIncrementalUpdate(List<ChatEntry> newEntries, Long userId,
-            String chatId, Map<String, String> filenameToHashMap) {
-        log.info("Starting incremental update for chat: {} with {} new entries", chatId,
-                newEntries.size());
-
-        // Get existing entries from database
-        List<ChatEntryEntity> existingEntries = chatEntryService
-                .findByUserIdAndChatId(userId, chatId, 0, Integer.MAX_VALUE).getContent();
-        log.info("Found {} existing entries in database", existingEntries.size());
-
-        // Create a map of new entries for efficient lookup
-        Map<String, ChatEntry> newEntriesMap = new HashMap<>();
-        for (ChatEntry entry : newEntries) {
-            String key = createEntryKey(entry);
-            newEntriesMap.put(key, entry);
-        }
-
-        // Create a map of existing entries for efficient lookup
-        Map<String, ChatEntryEntity> existingEntriesMap = new HashMap<>();
-        for (ChatEntryEntity existingEntry : existingEntries) {
-            String key = createEntryKey(existingEntry);
-            existingEntriesMap.put(key, existingEntry);
-        }
-
-        // Find entries to remove (existing entries that are no longer in new file)
-        List<Long> entriesToRemove = new ArrayList<>();
-        for (ChatEntryEntity existingEntry : existingEntries) {
-            String key = createEntryKey(existingEntry);
-            if (!newEntriesMap.containsKey(key)) {
-                entriesToRemove.add(existingEntry.getId());
-                log.debug("Marking existing entry for removal (no longer in new file): {}", key);
-            }
-        }
-
-        // Find new entries to add (entries in new file that weren't in database)
-        List<ChatEntry> entriesToAdd = new ArrayList<>();
-        for (ChatEntry newEntry : newEntries) {
-            String key = createEntryKey(newEntry);
-            if (!existingEntriesMap.containsKey(key)) {
-                entriesToAdd.add(newEntry);
-                log.debug("Adding new entry: {}", key);
-            }
-        }
-
-        // Remove entries that are no longer in the file
-        if (!entriesToRemove.isEmpty()) {
-            log.info("Removing {} entries that are no longer in the file", entriesToRemove.size());
-            for (Long entryId : entriesToRemove) {
-                chatEntryService.deleteById(entryId);
-            }
-        }
-
-        // Add new entries
-        List<ChatEntryEntity> savedEntries = new ArrayList<>();
-        if (!entriesToAdd.isEmpty()) {
-            log.info("Adding {} new entries", entriesToAdd.size());
-            savedEntries.addAll(chatEntryService.saveChatEntries(entriesToAdd, userId, chatId));
-        }
-
-        // Get the final list of entries (kept + newly added)
-        List<ChatEntryEntity> finalEntries = chatEntryService
-                .findByUserIdAndChatId(userId, chatId, 0, Integer.MAX_VALUE).getContent();
-
-        // Create locations for chat entries that have attachments
-        createLocationsForChatEntries(finalEntries, userId, filenameToHashMap);
-
-        log.info(
-                "Incremental update completed. Total entries: {} (kept: {}, added: {}, removed: {})",
-                finalEntries.size(), existingEntries.size() - entriesToRemove.size(),
-                entriesToAdd.size(), entriesToRemove.size());
-
-        return finalEntries;
+    private LocalDateTime parseTimestamp(String timestampString) {
+        return LocalDateTime.parse(timestampString, DATE_TIME_FORMATTER);
     }
 
     /**
-     * Create locations for chat entries that have attachments
+     * Determine message type based on content and attachment presence
      */
-    private void createLocationsForChatEntries(List<ChatEntryEntity> chatEntries, Long userId) {
-        for (ChatEntryEntity chatEntry : chatEntries) {
-            if (chatEntry.getFileName() != null && !chatEntry.getFileName().isEmpty()) {
-                try {
-                    // Find attachment by filename (since we don't have direct hash link)
-                    // This is a simplified approach - in a real implementation you might want to
-                    // store the hash mapping differently or use a more sophisticated lookup
-                    attachmentService.saveLocationForChatEntry(chatEntry.getFileName(), userId,
-                            chatEntry);
-                    log.debug("Created location for chat entry with filename: {}",
-                            chatEntry.getFileName());
-                } catch (Exception e) {
-                    log.error("Failed to create location for chat entry with filename: {} - {}",
-                            chatEntry.getFileName(), e.getMessage());
-                    // Continue processing even if location creation fails
-                }
-            }
+    private ChatEntry.Type determineMessageType(boolean hasAttachment, String content) {
+        if (!hasAttachment) {
+            return ChatEntry.Type.TEXT;
         }
-    }
 
-    /**
-     * Create locations for chat entries that have attachments
-     */
-    private void createLocationsForChatEntries(List<ChatEntryEntity> chatEntries, Long userId,
-            Map<String, String> filenameToHashMap) {
-        log.info("Creating locations for {} chat entries with {} filename mappings",
-                chatEntries.size(), filenameToHashMap.size());
-
-        for (ChatEntryEntity chatEntry : chatEntries) {
-            if (chatEntry.getFileName() != null && !chatEntry.getFileName().isEmpty()) {
-                log.debug("Processing chat entry {} with filename: {}", chatEntry.getId(),
-                        chatEntry.getFileName());
-                try {
-                    // Use the AttachmentService to properly link the chat entry to the location
-                    Location location = attachmentService
-                            .saveLocationForChatEntry(chatEntry.getFileName(), userId, chatEntry);
-
-                    if (location != null) {
-                        log.info(
-                                "Successfully linked chat entry {} to location {} for filename: {}",
-                                chatEntry.getId(), location.getId(), chatEntry.getFileName());
-                    } else {
-                        log.warn(
-                                "Failed to create location for chat entry {} with filename: {} - no attachment found",
-                                chatEntry.getId(), chatEntry.getFileName());
-                    }
-                } catch (Exception e) {
-                    log.error("Failed to create location for chat entry with filename: {} - {}",
-                            chatEntry.getFileName(), e.getMessage(), e);
-                    // Continue processing even if location creation fails
-                }
-            } else {
-                log.debug("Skipping chat entry {} - no filename", chatEntry.getId());
-            }
+        String lowerContent = content.toLowerCase();
+        if (lowerContent.matches(".*\\.(jpg|jpeg|png|gif|bmp|webp)$")) {
+            return ChatEntry.Type.IMAGE;
+        } else if (lowerContent.matches(".*\\.(mp4|avi|mov|wmv|flv|webm|mkv)$")) {
+            return ChatEntry.Type.VIDEO;
+        } else if (lowerContent.matches(".*\\.(mp3|wav|ogg|m4a|aac|opus)$")) {
+            return ChatEntry.Type.AUDIO;
+        } else if (lowerContent.matches(".*\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|rtf)$")) {
+            return ChatEntry.Type.DOCUMENT;
+        } else {
+            return ChatEntry.Type.FILE;
         }
-        log.info("Finished creating locations for {} chat entries", chatEntries.size());
     }
 
     /**
@@ -640,48 +509,34 @@ public class ChatUploadService {
      * entries across uploads
      */
     private String createEntryKey(ChatEntry entry) {
-        return String.format("%s|%s|%s|%s", entry.getTimestamp(), entry.getAuthor(),
+        return String.format("%s_%s_%s_%s", entry.getLocalDateTime(), entry.getAuthor(),
                 entry.getPayload() != null ? entry.getPayload() : "",
                 entry.getFileName() != null ? entry.getFileName() : "");
     }
 
     /**
-     * Create a unique key for a chat entry entity
+     * Create a unique key for a chat entry entity based on its content
      */
     private String createEntryKey(ChatEntryEntity entry) {
-        return String.format("%s|%s|%s|%s", entry.getTimestamp(), entry.getAuthor(),
+        return String.format("%s_%s_%s_%s", entry.getLocalDateTime(), entry.getAuthor(),
                 entry.getPayload() != null ? entry.getPayload() : "",
                 entry.getFileName() != null ? entry.getFileName() : "");
     }
 
     /**
-     * Remove duplicate entries from a list based on their unique key
+     * Remove duplicate entries based on content
      */
     private List<ChatEntry> deduplicateEntries(List<ChatEntry> entries) {
-        Map<String, ChatEntry> uniqueEntries = new LinkedHashMap<>();
-
+        Map<String, ChatEntry> uniqueEntries = new HashMap<>();
         for (ChatEntry entry : entries) {
             String key = createEntryKey(entry);
             if (!uniqueEntries.containsKey(key)) {
                 uniqueEntries.put(key, entry);
-            } else {
-                log.debug("Removing duplicate entry: {}", key);
             }
         }
-
-        int originalCount = entries.size();
-        int uniqueCount = uniqueEntries.size();
-        int duplicatesRemoved = originalCount - uniqueCount;
-
-        if (duplicatesRemoved > 0) {
-            log.info("Removed {} duplicate entries ({} -> {} unique entries)", duplicatesRemoved,
-                    originalCount, uniqueCount);
-        }
-
         return new ArrayList<>(uniqueEntries.values());
     }
 
-    // Result class for upload operations
     public static class UploadResult {
         private String chatId;
         private String originalFileName;
@@ -692,7 +547,6 @@ public class ChatUploadService {
         private boolean success;
         private String errorMessage;
 
-        // Builder pattern
         public static UploadResultBuilder builder() {
             return new UploadResultBuilder();
         }
@@ -745,7 +599,6 @@ public class ChatUploadService {
             }
         }
 
-        // Getters
         public String getChatId() {
             return chatId;
         }

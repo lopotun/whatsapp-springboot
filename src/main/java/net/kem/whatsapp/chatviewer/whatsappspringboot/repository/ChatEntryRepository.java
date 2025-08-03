@@ -109,6 +109,16 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
                         @Param("chatIds") List<String> chatIds, @Param("keyword") String keyword,
                         Pageable pageable);
 
+        // Combined search methods with chatIds
+        Page<ChatEntryEntity> findByUserIdAndChatIdInAndType(Long userId, List<String> chatIds,
+                        ChatEntry.Type type, Pageable pageable);
+
+        Page<ChatEntryEntity> findByUserIdAndChatIdInAndAuthor(Long userId, List<String> chatIds,
+                        String author, Pageable pageable);
+
+        Page<ChatEntryEntity> findByUserIdAndChatIdInAndLocalDateTimeBetween(Long userId, List<String> chatIds,
+                        LocalDateTime start, LocalDateTime end, Pageable pageable);
+
         // Search by attachment hash with user filter
         // REMOVED: List<ChatEntryEntity> findByUserIdAndAttachmentHash(Long userId, String
         // attachmentHash);

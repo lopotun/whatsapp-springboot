@@ -11,7 +11,6 @@ import lombok.Setter;
 @lombok.extern.jackson.Jacksonized
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ChatEntry implements Comparable<ChatEntry> {
-    protected final String timestamp;
     protected final String payload;
     protected final String author;
     protected final String fileName;
@@ -31,8 +30,7 @@ public class ChatEntry implements Comparable<ChatEntry> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("ChatEntry(");
-        sb.append("timestamp=").append(timestamp);
-        sb.append(", author=").append(author);
+        sb.append("author=").append(author);
         sb.append(", payload=").append(payload);
         sb.append(", fileName=").append(fileName);
         if (type != null) {
@@ -47,45 +45,15 @@ public class ChatEntry implements Comparable<ChatEntry> {
 
     @Override
     public int compareTo(ChatEntry other) {
-        if (other == null) {
-            return 1; // null values are considered greater
-        }
-
-        // Compare timestamp first
-        int timestampCompare = compareStrings(this.timestamp, other.timestamp);
-        if (timestampCompare != 0) {
-            return timestampCompare;
-        }
-
-        // If timestamps are equal, compare author
-        int authorCompare = compareStrings(this.author, other.author);
-        if (authorCompare != 0) {
-            return authorCompare;
-        }
-
-        // If authors are equal, compare payload
-        int payloadCompare = compareStrings(this.payload, other.payload);
-        if (payloadCompare != 0) {
-            return payloadCompare;
-        }
-
-        // If payloads are equal, compare fileName
-        return compareStrings(this.fileName, other.fileName);
-    }
-
-    /**
-     * Helper method to compare strings, handling null values
-     */
-    private int compareStrings(String str1, String str2) {
-        if (str1 == null && str2 == null) {
+        if (this.localDateTime == null && other.localDateTime == null) {
             return 0;
         }
-        if (str1 == null) {
-            return -1; // null is considered less than non-null
+        if (this.localDateTime == null) {
+            return -1;
         }
-        if (str2 == null) {
-            return 1; // non-null is considered greater than null
+        if (other.localDateTime == null) {
+            return 1;
         }
-        return str1.compareTo(str2);
+        return this.localDateTime.compareTo(other.localDateTime);
     }
 }

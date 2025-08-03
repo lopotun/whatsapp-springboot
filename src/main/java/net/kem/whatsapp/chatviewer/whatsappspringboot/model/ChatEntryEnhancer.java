@@ -1,37 +1,36 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 
-import jakarta.annotation.Nullable;
-import lombok.NonNull;
-import lombok.experimental.UtilityClass;
-import org.springframework.util.StringUtils;
-
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Predicate;
+import org.springframework.util.StringUtils;
+import jakarta.annotation.Nullable;
+import lombok.NonNull;
+import lombok.experimental.UtilityClass;
 
 @UtilityClass
 public class ChatEntryEnhancer {
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("M/d/yy, HH:mm");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("M/d/yy, HH:mm");
 
     @NonNull
-    public List<ChatEntry> enhance(@NonNull List<ChatEntry> chatEntries, boolean timestamp, boolean chatType) {
+    public List<ChatEntry> enhance(@NonNull List<ChatEntry> chatEntries, boolean timestamp,
+            boolean chatType) {
         return enhance(chatEntries, timestamp, chatType, null);
     }
 
     @NonNull
-    public List<ChatEntry> enhance(@NonNull List<ChatEntry> chatEntries, boolean timestamp, boolean chatType, @Nullable Predicate<ChatEntry> filter) {
-        return chatEntries.stream()
-                .filter(filter == null ? entry -> true : filter)
-                .map(entry -> enhance(entry, timestamp, chatType))
-                .toList();
+    public List<ChatEntry> enhance(@NonNull List<ChatEntry> chatEntries, boolean timestamp,
+            boolean chatType, @Nullable Predicate<ChatEntry> filter) {
+        return chatEntries.stream().filter(filter == null ? entry -> true : filter)
+                .map(entry -> enhance(entry, timestamp, chatType)).toList();
     }
 
     @NonNull
     public ChatEntry enhance(@NonNull ChatEntry chatEntry, boolean timestamp, boolean chatType) {
-        if (timestamp) {
-            chatEntry.setLocalDateTime(parseTimestamp(chatEntry.getTimestamp()));
-        }
+        // Note: timestamp enhancement is no longer needed since we removed the timestamp field
+        // The localDateTime is now set during parsing in ChatUploadService
 
         if (chatType) {
             chatEntry.setType(determineType(chatEntry));
@@ -71,13 +70,12 @@ public class ChatEntryEnhancer {
             return LocalDateTime.parse(timestampString, DATE_TIME_FORMATTER);
         } catch (Exception e) {
             // Try alternative formats if the default format fails
-            DateTimeFormatter[] alternativeFormatters = {
-                DateTimeFormatter.ofPattern("M/d/yy, H:mm"),
-                DateTimeFormatter.ofPattern("M/d/yy, HH:mm"),
-                DateTimeFormatter.ofPattern("MM/dd/yy, HH:mm"),
-                DateTimeFormatter.ofPattern("M/d/yyyy, HH:mm"),
-                DateTimeFormatter.ofPattern("MM/dd/yyyy, HH:mm")
-            };
+            DateTimeFormatter[] alternativeFormatters =
+                    {DateTimeFormatter.ofPattern("M/d/yy, H:mm"),
+                            DateTimeFormatter.ofPattern("M/d/yy, HH:mm"),
+                            DateTimeFormatter.ofPattern("MM/dd/yy, HH:mm"),
+                            DateTimeFormatter.ofPattern("M/d/yyyy, HH:mm"),
+                            DateTimeFormatter.ofPattern("MM/dd/yyyy, HH:mm")};
 
             for (DateTimeFormatter formatter : alternativeFormatters) {
                 try {
@@ -88,8 +86,8 @@ public class ChatEntryEnhancer {
             }
 
             // If all formats fail, return null or throw a more descriptive exception
-            throw new IllegalArgumentException("Unable to parse timestamp: " + timestampString +
-                ". Supported formats: M/d/yy, HH:mm, M/d/yy, H:mm, MM/dd/yy, HH:mm, M/d/yyyy, HH:mm, MM/dd/yyyy, HH:mm");
+            throw new IllegalArgumentException("Unable to parse timestamp: " + timestampString
+                    + ". Supported formats: M/d/yy, HH:mm, M/d/yy, H:mm, MM/dd/yy, HH:mm, M/d/yyyy, HH:mm, MM/dd/yyyy, HH:mm");
         }
     }
 }

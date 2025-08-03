@@ -495,8 +495,8 @@
                                                                 // Calculate date range
                                 if (data.content.length > 0) {
                                     const validDates = data.content
-                                        .filter(entry => entry && entry.timestamp)
-                                        .map(entry => new Date(entry.timestamp))
+                                        .filter(entry => entry && entry.localDateTime)
+                                        .map(entry => new Date(entry.localDateTime))
                                         .filter(date => !isNaN(date.getTime()))
                                         .sort((a, b) => a - b); // Sort numerically
 
@@ -716,7 +716,7 @@
                         // Group by date
                         const dailyCounts = {};
                         data.content.forEach(entry => {
-                            const date = new Date(entry.timestamp).toDateString();
+                            const date = new Date(entry.localDateTime).toDateString();
                             dailyCounts[date] = (dailyCounts[date] || 0) + 1;
                         });
 

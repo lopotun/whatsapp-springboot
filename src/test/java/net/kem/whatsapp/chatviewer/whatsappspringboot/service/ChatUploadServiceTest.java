@@ -14,6 +14,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -83,14 +84,10 @@ class ChatUploadServiceTest {
 
                 // Mock existing entries for incremental update (needed for the second upload)
                 List<ChatEntryEntity> existingEntries = Arrays.asList(
-                                createTestChatEntryEntity(1L, "12/25/23, 14:30", "John Doe",
-                                                "Hello, world!"),
-                                createTestChatEntryEntity(2L, "12/25/23, 14:31", "John Doe",
-                                                "How are you?"),
-                                createTestChatEntryEntity(3L, "12/25/23, 14:32", "John Doe",
-                                                "How are you?"),
-                                createTestChatEntryEntity(4L, "12/25/23, 14:33", "Jane Doe",
-                                                "I'm good!"));
+                                createTestChatEntryEntity(1L, "John Doe", "Hello, world!"),
+                                createTestChatEntryEntity(2L, "John Doe", "How are you?"),
+                                createTestChatEntryEntity(3L, "John Doe", "How are you?"),
+                                createTestChatEntryEntity(4L, "Jane Doe", "I'm good!"));
 
                 org.springframework.data.domain.Page<ChatEntryEntity> existingPage =
                                 new org.springframework.data.domain.PageImpl<>(existingEntries);
@@ -99,14 +96,10 @@ class ChatUploadServiceTest {
 
                 // Mock the first save operation
                 List<ChatEntryEntity> firstSavedEntries = Arrays.asList(
-                                createTestChatEntryEntity(1L, "12/25/23, 14:30", "John Doe",
-                                                "Hello, world!"),
-                                createTestChatEntryEntity(2L, "12/25/23, 14:31", "John Doe",
-                                                "How are you?"),
-                                createTestChatEntryEntity(3L, "12/25/23, 14:32", "John Doe",
-                                                "How are you?"),
-                                createTestChatEntryEntity(4L, "12/25/23, 14:33", "Jane Doe",
-                                                "I'm good!"));
+                                createTestChatEntryEntity(1L, "John Doe", "Hello, world!"),
+                                createTestChatEntryEntity(2L, "John Doe", "How are you?"),
+                                createTestChatEntryEntity(3L, "John Doe", "How are you?"),
+                                createTestChatEntryEntity(4L, "Jane Doe", "I'm good!"));
                 when(chatEntryService.saveChatEntries(anyList(), eq(userId), anyString()))
                                 .thenReturn(firstSavedEntries);
 
@@ -121,14 +114,11 @@ class ChatUploadServiceTest {
 
                 // Mock the incremental update scenario
                 List<ChatEntryEntity> keptEntries = Arrays.asList(
-                                createTestChatEntryEntity(1L, "12/25/23, 14:30", "John Doe",
-                                                "Hello, world!"),
-                                createTestChatEntryEntity(3L, "12/25/23, 14:32", "John Doe",
-                                                "How are you?"),
-                                createTestChatEntryEntity(4L, "12/25/23, 14:33", "Jane Doe",
-                                                "I'm good!"));
+                                createTestChatEntryEntity(1L, "John Doe", "Hello, world!"),
+                                createTestChatEntryEntity(3L, "John Doe", "How are you?"),
+                                createTestChatEntryEntity(4L, "Jane Doe", "I'm good!"));
                 List<ChatEntryEntity> newEntries = Arrays.asList(createTestChatEntryEntity(5L,
-                                "12/25/23, 14:34", "John Doe", "Great!"));
+                                "John Doe", "Great!"));
 
                 when(chatEntryService.saveChatEntries(anyList(), eq(userId), anyString()))
                                 .thenReturn(keptEntries).thenReturn(newEntries);
@@ -165,7 +155,7 @@ class ChatUploadServiceTest {
 
                 // Mock the save operation
                 List<ChatEntryEntity> savedEntries = Arrays.asList(createTestChatEntryEntity(1L,
-                                "12/25/23, 14:30", "John Doe", "Hello, world!"));
+                                "John Doe", "Hello, world!"));
                 when(chatEntryService.saveChatEntries(anyList(), eq(userId), anyString()))
                                 .thenReturn(savedEntries);
 
@@ -182,7 +172,7 @@ class ChatUploadServiceTest {
                 verify(chatService, times(2)).chatExists(anyLong(), anyString());
                 verify(chatEntryService, never()).findByUserIdAndChatId(anyLong(), anyString(),
                                 anyInt(), anyInt());
-                verify(chatEntryService, never()).deleteChat(anyLong(), anyString());
+                verify(chatEntryService, never()).deleteByUserIdAndChatId(anyLong(), anyString());
                 verify(chatEntryService).saveChatEntries(anyList(), eq(userId), anyString());
         }
 
@@ -221,9 +211,14 @@ class ChatUploadServiceTest {
                 assertTrue(chatId2.startsWith("user1_chat2txt_"));
         }
 
-        private ChatEntryEntity createTestChatEntryEntity(Long id, String timestamp, String author,
-                        String payload) {
-                return ChatEntryEntity.builder().id(id).timestamp(timestamp).author(author)
-                                .payload(payload).userId(userId).chatId(chatId).build();
+        private ChatEntryEntity createTestChatEntryEntity(Long id, String author, String payload) {
+                return ChatEntryEntity.builder()
+                                .id(id)
+                                .author(author)
+                                .payload(payload)
+                                .userId(userId)
+                                .chatId(chatId)
+                                .localDateTime(LocalDateTime.of(2023, 12, 25, 14, 30))
+                                .build();
         }
 }

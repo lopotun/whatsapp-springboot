@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -26,18 +27,32 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.User;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.ChatEntryService;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.service.UserService;
 
 @ExtendWith(MockitoExtension.class)
 class ChatEntryControllerTest {
 
         @Mock
         private ChatEntryService chatEntryService;
+
+        @Mock
+        private UserService userService;
+
+        @Mock
+        private Authentication authentication;
+
+        @Mock
+        private SecurityContext securityContext;
 
         @InjectMocks
         private ChatEntryController chatEntryController;
@@ -46,19 +61,34 @@ class ChatEntryControllerTest {
         private ObjectMapper objectMapper;
 
         private ChatEntryEntity testChatEntryEntity;
+        private final Long userId = 1L;
+        private final String username = "testuser";
 
         @BeforeEach
         void setUp() {
                 mockMvc = MockMvcBuilders.standaloneSetup(chatEntryController).build();
                 objectMapper = new ObjectMapper();
 
-                testChatEntryEntity = ChatEntryEntity.builder().id(1L).timestamp("12/25/23, 14:30")
-                                .author("John Doe").payload("Hello, world!").fileName(null)
+                testChatEntryEntity = ChatEntryEntity.builder()
+                                .id(1L)
+                                .author("John Doe")
+                                .payload("Hello, world!")
+                                .fileName(null)
                                 .type(ChatEntry.Type.TEXT)
-                                .localDateTime(LocalDateTime.of(2023, 12, 25, 14, 30)).build();
-        }
+                                .localDateTime(LocalDateTime.of(2023, 12, 25, 14, 30))
+                                .userId(userId)
+                                .chatId("test_chat")
+                                .build();
 
-        private final Long userId = 1L;
+                // Mock authentication context with lenient stubbing
+                lenient().when(authentication.getName()).thenReturn(username);
+                lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
+                SecurityContextHolder.setContext(securityContext);
+
+                // Mock user service with lenient stubbing
+                User testUser = User.builder().id(userId).username(username).build();
+                lenient().when(userService.findByUsername(username)).thenReturn(Optional.of(testUser));
+        }
 
         @Test
         void getChatEntry_ShouldReturnChatEntry_WhenExists() throws Exception {
@@ -91,7 +121,7 @@ class ChatEntryControllerTest {
                 // Given
                 Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity),
                                 PageRequest.of(0, 20), 1);
-                when(chatEntryService.findAll(0, 20)).thenReturn(page);
+                when(chatEntryService.findByUserId(userId, 0, 20)).thenReturn(page);
 
                 // When & Then
                 mockMvc.perform(get("/api/chat-entries").param("page", "0").param("size", "20"))
@@ -99,7 +129,7 @@ class ChatEntryControllerTest {
                                 .andExpect(jsonPath("$.content[0].id").value(1))
                                 .andExpect(jsonPath("$.totalElements").value(1));
 
-                verify(chatEntryService).findAll(0, 20);
+                verify(chatEntryService).findByUserId(userId, 0, 20);
         }
 
         @Test
@@ -146,15 +176,15 @@ class ChatEntryControllerTest {
                 // Given
                 Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity),
                                 PageRequest.of(0, 20), 1);
-                when(chatEntryService.searchByKeyword(anyLong(), anyString(), any(), anyInt(),
-                                anyInt())).thenReturn(page);
+                when(chatEntryService.searchByKeyword(eq(userId), eq("Hello"), any(), eq(0), eq(20)))
+                                .thenReturn(page);
 
                 // When & Then
                 mockMvc.perform(get("/api/chat-entries/search/keyword").param("keyword", "Hello"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content[0].payload").value("Hello, world!"));
 
-                verify(chatEntryService).searchByKeyword(userId, "Hello", any(), 0, 20);
+                verify(chatEntryService).searchByKeyword(eq(userId), eq("Hello"), any(), eq(0), eq(20));
         }
 
         @Test
@@ -163,15 +193,15 @@ class ChatEntryControllerTest {
                 Page<ChatEntryEntity> page = new PageImpl<>(Arrays.asList(testChatEntryEntity),
                                 PageRequest.of(0, 20), 1);
                 List<String> chatIds = Arrays.asList("chat1_123_abc");
-                when(chatEntryService.searchByKeyword(anyLong(), anyString(), eq(chatIds), anyInt(),
-                                anyInt())).thenReturn(page);
+                when(chatEntryService.searchByKeyword(eq(userId), eq("Hello"), eq(chatIds), eq(0), eq(20)))
+                                .thenReturn(page);
 
                 // When & Then
                 mockMvc.perform(get("/api/chat-entries/search/keyword").param("keyword", "Hello")
                                 .param("chatIds", "chat1_123_abc")).andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content[0].payload").value("Hello, world!"));
 
-                verify(chatEntryService).searchByKeyword(userId, "Hello", chatIds, 0, 20);
+                verify(chatEntryService).searchByKeyword(eq(userId), eq("Hello"), eq(chatIds), eq(0), eq(20));
         }
 
         @Test
@@ -216,33 +246,35 @@ class ChatEntryControllerTest {
         void findByAuthor_ShouldReturnList() throws Exception {
                 // Given
                 List<ChatEntryEntity> entries = Arrays.asList(testChatEntryEntity);
-                when(chatEntryService.findByAuthor("John Doe")).thenReturn(entries);
+                when(chatEntryService.findByAuthor(userId, "John Doe")).thenReturn(entries);
 
                 // When & Then
                 mockMvc.perform(get("/api/chat-entries/author/John Doe")).andExpect(status().isOk())
                                 .andExpect(jsonPath("$[0].author").value("John Doe"));
 
-                verify(chatEntryService).findByAuthor("John Doe");
+                verify(chatEntryService).findByAuthor(userId, "John Doe");
         }
 
         @Test
         void findByType_ShouldReturnList() throws Exception {
                 // Given
                 List<ChatEntryEntity> entries = Arrays.asList(testChatEntryEntity);
-                when(chatEntryService.findByType(ChatEntry.Type.TEXT)).thenReturn(entries);
+                when(chatEntryService.findByType(userId, ChatEntry.Type.TEXT)).thenReturn(entries);
 
                 // When & Then
                 mockMvc.perform(get("/api/chat-entries/type/TEXT")).andExpect(status().isOk())
                                 .andExpect(jsonPath("$[0].type").value("TEXT"));
 
-                verify(chatEntryService).findByType(ChatEntry.Type.TEXT);
+                verify(chatEntryService).findByType(userId, ChatEntry.Type.TEXT);
         }
 
         @Test
         void findByDateRange_ShouldReturnList() throws Exception {
                 // Given
                 List<ChatEntryEntity> entries = Arrays.asList(testChatEntryEntity);
-                when(chatEntryService.findByDateRange(any(), any())).thenReturn(entries);
+                LocalDateTime startDate = LocalDateTime.of(2023, 12, 25, 0, 0);
+                LocalDateTime endDate = LocalDateTime.of(2023, 12, 25, 23, 59, 59);
+                when(chatEntryService.findByDateRange(userId, startDate, endDate)).thenReturn(entries);
 
                 // When & Then
                 mockMvc.perform(get("/api/chat-entries/date-range")
@@ -250,14 +282,14 @@ class ChatEntryControllerTest {
                                 .param("end", "2023-12-25T23:59:59")).andExpect(status().isOk())
                                 .andExpect(jsonPath("$[0].id").value(1));
 
-                verify(chatEntryService).findByDateRange(any(), any());
+                verify(chatEntryService).findByDateRange(userId, startDate, endDate);
         }
 
         @Test
         void findByAuthorAndType_ShouldReturnList() throws Exception {
                 // Given
                 List<ChatEntryEntity> entries = Arrays.asList(testChatEntryEntity);
-                when(chatEntryService.findByAuthorAndType("John Doe", ChatEntry.Type.TEXT))
+                when(chatEntryService.findByAuthorAndType(userId, "John Doe", ChatEntry.Type.TEXT))
                                 .thenReturn(entries);
 
                 // When & Then
@@ -266,14 +298,16 @@ class ChatEntryControllerTest {
                                 .andExpect(jsonPath("$[0].author").value("John Doe"))
                                 .andExpect(jsonPath("$[0].type").value("TEXT"));
 
-                verify(chatEntryService).findByAuthorAndType("John Doe", ChatEntry.Type.TEXT);
+                verify(chatEntryService).findByAuthorAndType(userId, "John Doe", ChatEntry.Type.TEXT);
         }
 
         @Test
         void findByAuthorAndDateRange_ShouldReturnList() throws Exception {
                 // Given
                 List<ChatEntryEntity> entries = Arrays.asList(testChatEntryEntity);
-                when(chatEntryService.findByAuthorAndDateRange(anyString(), any(), any()))
+                LocalDateTime startDate = LocalDateTime.of(2023, 12, 25, 0, 0);
+                LocalDateTime endDate = LocalDateTime.of(2023, 12, 25, 23, 59, 59);
+                when(chatEntryService.findByAuthorAndDateRange(userId, "John Doe", startDate, endDate))
                                 .thenReturn(entries);
 
                 // When & Then
@@ -282,14 +316,16 @@ class ChatEntryControllerTest {
                                 .param("end", "2023-12-25T23:59:59")).andExpect(status().isOk())
                                 .andExpect(jsonPath("$[0].author").value("John Doe"));
 
-                verify(chatEntryService).findByAuthorAndDateRange(eq("John Doe"), any(), any());
+                verify(chatEntryService).findByAuthorAndDateRange(userId, "John Doe", startDate, endDate);
         }
 
         @Test
         void findByTypeAndDateRange_ShouldReturnList() throws Exception {
                 // Given
                 List<ChatEntryEntity> entries = Arrays.asList(testChatEntryEntity);
-                when(chatEntryService.findByTypeAndDateRange(any(), any(), any()))
+                LocalDateTime startDate = LocalDateTime.of(2023, 12, 25, 0, 0);
+                LocalDateTime endDate = LocalDateTime.of(2023, 12, 25, 23, 59, 59);
+                when(chatEntryService.findByTypeAndDateRange(userId, ChatEntry.Type.TEXT, startDate, endDate))
                                 .thenReturn(entries);
 
                 // When & Then
@@ -298,8 +334,7 @@ class ChatEntryControllerTest {
                                 .param("end", "2023-12-25T23:59:59")).andExpect(status().isOk())
                                 .andExpect(jsonPath("$[0].type").value("TEXT"));
 
-                verify(chatEntryService).findByTypeAndDateRange(eq(ChatEntry.Type.TEXT), any(),
-                                any());
+                verify(chatEntryService).findByTypeAndDateRange(userId, ChatEntry.Type.TEXT, startDate, endDate);
         }
 
         @Test
