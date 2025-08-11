@@ -35,7 +35,12 @@ public class AttachmentService {
             attachment = existingAttachment.get();
             attachment.setLastAddedTimestamp(LocalDateTime.now());
             if (fileSize != null) {
-                attachment.setFileSize(fileSize);
+                // Only update file size if it is provided and different from existing
+                if (!attachment.getFileSize().equals(fileSize)) {
+                    attachment.setFileSize(fileSize);
+                    log.warn("New file size {} <> {} (existing) for attachment with hash {}",
+                        fileSize, attachment.getFileSize(), hash);
+                }
             }
             attachment = attachmentRepository.save(attachment);
             log.debug("Updated existing attachment with hash: {}", hash);
@@ -50,7 +55,6 @@ public class AttachmentService {
             attachment = attachmentRepository.save(attachment);
             log.info("Created new attachment with hash: {} and size: {} bytes", hash, fileSize);
         }
-
         return attachment;
     }
 

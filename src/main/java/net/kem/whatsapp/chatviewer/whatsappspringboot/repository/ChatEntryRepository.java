@@ -150,4 +150,26 @@ public interface ChatEntryRepository extends JpaRepository<ChatEntryEntity, Long
                         COUNT(CASE WHEN ce.fileName IS NOT NULL THEN 1 END) as attachmentCount \
                         FROM ChatEntryEntity ce WHERE ce.userId = :userId GROUP BY ce.chatId""")
         List<Object[]> getChatStatisticsByUserId(@Param("userId") Long userId);
+
+        // Check if entry exists by unique constraint fields
+        boolean existsByUserIdAndChatIdAndLocalDateTimeAndAuthorAndPayloadAndFileName(
+            Long userId, String chatId, LocalDateTime localDateTime, String author, String payload, String fileName);
+
+        // Alternative method with nullable parameters handled
+        @Query("""
+            SELECT COUNT(ce) > 0 FROM ChatEntryEntity ce
+            WHERE ce.userId = :userId
+            AND ce.chatId = :chatId
+            AND ce.localDateTime = :localDateTime
+            AND ce.author = :author
+            AND COALESCE(ce.payload, '') = COALESCE(:payload, '')
+            AND COALESCE(ce.fileName, '') = COALESCE(:fileName, '')
+            """)
+        boolean existsByUniqueFields(
+            @Param("userId") Long userId,
+            @Param("chatId") String chatId,
+            @Param("localDateTime") LocalDateTime localDateTime,
+            @Param("author") String author,
+            @Param("payload") String payload,
+            @Param("fileName") String fileName);
 }

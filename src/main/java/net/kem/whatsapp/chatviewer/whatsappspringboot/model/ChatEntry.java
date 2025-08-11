@@ -3,11 +3,14 @@ package net.kem.whatsapp.chatviewer.whatsappspringboot.model;
 import java.time.LocalDateTime;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.Setter;
 
 @Builder
 @Getter
+@EqualsAndHashCode(of = {"localDateTime", "author", "payload", "fileName"})
 @lombok.extern.jackson.Jacksonized
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ChatEntry implements Comparable<ChatEntry> {
@@ -44,7 +47,7 @@ public class ChatEntry implements Comparable<ChatEntry> {
     }
 
     @Override
-    public int compareTo(ChatEntry other) {
+    public int compareTo(@NonNull ChatEntry other) {
         if (this.localDateTime == null && other.localDateTime == null) {
             return 0;
         }

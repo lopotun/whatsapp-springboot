@@ -19,6 +19,7 @@ import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.ChatEntryRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.CollectionUtils;
 
 @Slf4j
 @Service
@@ -68,6 +69,28 @@ public class ChatEntryService {
         log.info("Saved {} chat entries in batch for user: {} and chat: {}", saved.size(), userId,
                 chatId);
         return saved;
+    }
+
+    /**
+     * Save multiple chat entries in batch with user and chat association
+     */
+    public List<ChatEntryEntity> saveChatEntries(List<ChatEntryEntity> chatEntryEntities) {
+        if(CollectionUtils.isEmpty(chatEntryEntities)) {
+            log.warn("No chat entries provided for batch save");
+            return List.of();
+        }
+        List<ChatEntryEntity> saved = chatEntryRepository.saveAll(chatEntryEntities);
+        log.info("Saved {} chat entries in batch for user: {} and chat: {}",
+                saved.size(), chatEntryEntities.getFirst().getUserId(), chatEntryEntities.getFirst().getChatId());
+        return saved;
+    }
+
+    /**
+     * Check if a chat entry already exists based on unique constraint fields
+     */
+    public boolean existsByUniqueFields(Long userId, String chatId, LocalDateTime localDateTime,
+                                       String author, String payload, String fileName) {
+        return chatEntryRepository.existsByUniqueFields(userId, chatId, localDateTime, author, payload, fileName);
     }
 
     /**
