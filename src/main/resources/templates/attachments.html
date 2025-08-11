@@ -176,6 +176,38 @@
             opacity: 0.9;
         }
 
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background-color 0.2s ease;
+        }
+
+        .sortable:hover {
+            background-color: rgba(37, 211, 102, 0.1);
+        }
+
+        .sortable.sort-asc .sort-icon::before {
+            content: "\F12C"; /* bi-arrow-up */
+            color: #25d366;
+        }
+
+        .sortable.sort-desc .sort-icon::before {
+            content: "\F12F"; /* bi-arrow-down */
+            color: #25d366;
+        }
+
+        .sortable .sort-icon {
+            margin-left: 0.5rem;
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        .sortable.sort-asc .sort-icon,
+        .sortable.sort-desc .sort-icon {
+            opacity: 1;
+        }
+
         @media (max-width: 768px) {
             .stats-card {
                 padding: 1.5rem;
@@ -271,7 +303,7 @@
                             </div>
                         </div>
 
-                        <div class="d-flex gap-2 mb-4">
+                        <div class="d-flex gap-2 mb-4 align-items-center">
                             <button class="btn btn-primary" onclick="searchAttachments()">
                                 <i class="bi bi-search me-2"></i>Search
                             </button>
@@ -281,6 +313,9 @@
                             <button class="btn btn-outline-info" onclick="loadAllAttachments()">
                                 <i class="bi bi-list-ul me-2"></i>Show All
                             </button>
+                            <div class="ms-auto">
+                                <small class="text-muted" id="sortInfo">No sorting applied</small>
+                            </div>
                         </div>
 
                         <!-- Statistics Cards -->
@@ -327,8 +362,14 @@
                                                 <tr>
                                                     <th>Hash</th>
                                                     <th>Status</th>
-                                                    <th>File Size</th>
-                                                    <th>Last Added</th>
+                                                    <th class="sortable" data-sort="fileSize">
+                                                        File Size
+                                                        <i class="bi bi-arrow-down-up sort-icon"></i>
+                                                    </th>
+                                                    <th class="sortable" data-sort="lastAddedTimestamp">
+                                                        Last Added
+                                                        <i class="bi bi-arrow-down-up sort-icon"></i>
+                                                    </th>
                                                     <th>Actions</th>
                                                 </tr>
                                             </thead>
@@ -363,15 +404,28 @@
     <div th:fragment="scripts">
         <script>
             let currentAttachments = [];
+            let currentSort = { field: null, direction: 'asc' };
 
             document.addEventListener('DOMContentLoaded', function() {
                 // Load initial data
                 loadAllAttachments();
+
+                // Add sorting event listeners
+                document.querySelectorAll('.sortable').forEach(th => {
+                    th.addEventListener('click', function() {
+                        const field = this.dataset.sort;
+                        handleSort(field);
+                    });
+                });
             });
 
             function loadAllAttachments() {
                 Utils.showLoading('loadingAttachments');
                 hideResults();
+
+                // Clear sorting when loading all attachments
+                currentSort = { field: null, direction: 'asc' };
+                updateSortIndicators();
 
                 // Load attachments
                 fetch('/api/attachments') // All attachments
@@ -475,6 +529,11 @@
                     return;
                 }
 
+                // Apply current sorting if any
+                if (currentSort.field) {
+                    attachments = sortAttachments(attachments, currentSort.field, currentSort.direction);
+                }
+
                 let html = '';
                 attachments.forEach(att => {
                     const statusBadge = getStatusBadge(att.status);
@@ -503,6 +562,80 @@
                 });
 
                 tbody.innerHTML = html;
+            }
+
+            function handleSort(field) {
+                // Toggle sort direction if same field, otherwise set to asc
+                if (currentSort.field === field) {
+                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSort.field = field;
+                    currentSort.direction = 'asc';
+                }
+
+                // Update sort indicators
+                updateSortIndicators();
+
+                // Re-display attachments with current sorting
+                displayAttachments([...currentAttachments]);
+            }
+
+            function updateSortIndicators() {
+                // Clear all sort indicators
+                document.querySelectorAll('.sortable').forEach(th => {
+                    th.classList.remove('sort-asc', 'sort-desc');
+                });
+
+                // Set current sort indicator
+                if (currentSort.field) {
+                    const currentTh = document.querySelector(`[data-sort="${currentSort.field}"]`);
+                    if (currentTh) {
+                        currentTh.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                    }
+                }
+
+                // Update sort info display
+                const sortInfo = document.getElementById('sortInfo');
+                if (currentSort.field) {
+                    const fieldName = currentSort.field === 'fileSize' ? 'File Size' : 'Last Added';
+                    const direction = currentSort.direction === 'asc' ? 'ascending' : 'descending';
+                    sortInfo.textContent = `Sorted by ${fieldName} (${direction})`;
+                } else {
+                    sortInfo.textContent = 'No sorting applied';
+                }
+            }
+
+            function sortAttachments(attachments, field, direction) {
+                return attachments.sort((a, b) => {
+                    let aValue = a[field];
+                    let bValue = b[field];
+
+                    // Handle null/undefined values
+                    if (aValue === null || aValue === undefined) aValue = '';
+                    if (bValue === null || bValue === undefined) bValue = '';
+
+                    // Handle numeric values (fileSize)
+                    if (field === 'fileSize') {
+                        aValue = aValue || 0;
+                        bValue = bValue || 0;
+                        return direction === 'asc' ? aValue - bValue : bValue - aValue;
+                    }
+
+                    // Handle date values (lastAddedTimestamp)
+                    if (field === 'lastAddedTimestamp') {
+                        const aDate = new Date(aValue || 0);
+                        const bDate = new Date(bValue || 0);
+                        return direction === 'asc' ? aDate - bDate : bDate - aDate;
+                    }
+
+                    // Handle string values
+                    aValue = String(aValue).toLowerCase();
+                    bValue = String(bValue).toLowerCase();
+
+                    if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                    if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
             }
 
 
@@ -593,6 +726,11 @@
                 document.getElementById('searchHash').value = '';
                 document.getElementById('filterStatus').value = '';
                 document.getElementById('filterClient').value = '';
+
+                // Clear sorting
+                currentSort = { field: null, direction: 'asc' };
+                updateSortIndicators();
+
                 loadAllAttachments();
             }
 

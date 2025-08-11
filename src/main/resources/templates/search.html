@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search - WhatsApp Chat Viewer</title>
 
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -192,6 +196,51 @@
         .modal-header {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border-radius: 12px 12px 0 0;
+        }
+
+        /* Ensure chat names are displayed in full */
+        #chatIds option {
+            white-space: normal;
+            word-wrap: break-word;
+            min-height: 1.2em;
+            padding: 0.5rem;
+        }
+
+        /* Make the chat dropdown wider to accommodate long names */
+        #chatIds {
+            min-width: 300px;
+        }
+
+        /* Ensure selected options are fully visible */
+        #chatIds option:checked {
+            background-color: #0d6efd;
+            color: white;
+        }
+
+        /* Attachment viewer modal styles */
+        #attachmentViewerModal .modal-xl {
+            max-width: 90vw;
+        }
+
+        #attachmentViewerModal .modal-body {
+            padding: 1.5rem;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #attachmentViewerContent img,
+        #attachmentViewerContent video,
+        #attachmentViewerContent iframe {
+            max-width: 100%;
+            max-height: 70vh;
+            object-fit: contain;
+        }
+
+        #attachmentViewerContent pre {
+            max-width: 100%;
+            margin: 0;
         }
     </style>
 </head>
@@ -393,6 +442,29 @@
                 </div>
             </div>
 
+            <!-- Attachment Viewer Modal -->
+            <div class="modal fade" id="attachmentViewerModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="attachmentViewerTitle">Viewing Attachment</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="attachmentViewerContent" class="text-center">
+                                <!-- Content will be loaded here -->
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" id="downloadFromViewerBtn">
+                                <i class="bi bi-download me-1"></i>Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Results Section -->
             <div id="resultsSection" style="display: none;">
                 <div class="card">
@@ -500,6 +572,33 @@
             if (window.location.search) {
                 loadFromUrl();
             }
+
+            // Setup download button in attachment viewer modal
+            document.getElementById('downloadFromViewerBtn').addEventListener('click', function() {
+                if (window.currentAttachmentUrl && window.currentAttachmentFileName) {
+                    // Create download link
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = window.currentAttachmentUrl;
+                    a.download = window.currentAttachmentFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+
+                    // Show success message
+                    Utils.showAlert('File downloaded successfully!', 'success');
+                }
+            });
+
+            // Clean up blob URLs when modal is closed
+            document.getElementById('attachmentViewerModal').addEventListener('hidden.bs.modal', function() {
+                if (window.currentAttachmentUrl) {
+                    window.URL.revokeObjectURL(window.currentAttachmentUrl);
+                    window.currentAttachmentUrl = null;
+                    window.currentAttachmentFileName = null;
+                    window.currentChatEntryId = null;
+                }
+            });
         });
 
         function loadUserChats() {
@@ -527,14 +626,41 @@
 
         function formatChatId(chatId) {
             // Extract a more readable name from the chat ID
-            // Remove timestamp and UUID parts, keep the base name
+            // Handle different chat ID formats
+            if (!chatId) return '';
+
+            console.log('Formatting chat ID:', chatId);
+
             const parts = chatId.split('_');
-            if (parts.length >= 3) {
-                // Remove the last two parts (timestamp and UUID)
-                const baseName = parts.slice(0, -2).join('_');
-                return baseName.charAt(0).toUpperCase() + baseName.slice(1).replace(/([A-Z])/g, ' $1');
+            console.log('Split parts:', parts);
+
+            // If it starts with "userX_", remove that prefix
+            if (parts.length > 1 && parts[0].startsWith('user') && /^\d+$/.test(parts[0].substring(4))) {
+                // Remove the "userX_" prefix and format the rest
+                const baseName = parts.slice(1).join('_');
+                console.log('Base name after removing user prefix:', baseName);
+
+                // Special handling for WhatsApp chat format
+                if (baseName.startsWith('WhatsApp_Chat_with_')) {
+                    // Convert "WhatsApp_Chat_with_Ariel_Kogan" to "WhatsApp Chat with Ariel Kogan"
+                    const formatted = baseName
+                        .replace('WhatsApp_Chat_with_', 'WhatsApp Chat with ')
+                        .replace(/([A-Z])/g, ' $1')
+                        .trim();
+                    console.log('WhatsApp format detected, formatted result:', formatted);
+                    return formatted;
+                }
+
+                // General formatting for other cases
+                const formatted = baseName.replace(/([A-Z])/g, ' $1').trim();
+                console.log('General format, formatted result:', formatted);
+                return formatted;
             }
-            return chatId;
+
+            // For other formats, just format the existing name
+            const formatted = chatId.replace(/([A-Z])/g, ' $1').trim();
+            console.log('Other format, formatted result:', formatted);
+            return formatted;
         }
 
         function performSearch(page = 0) {
@@ -586,14 +712,31 @@
             fetch(url, {
                 credentials: 'same-origin'
             })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     Utils.hideLoading('loadingResults');
                     displayResults(data);
                 })
                 .catch(error => {
                     Utils.hideLoading('loadingResults');
+                    console.error('Search request failed:', error);
                     Utils.showAlert('Search failed: ' + error.message, 'danger');
+
+                    // Show error in results container
+                    const container = document.getElementById('resultsContainer');
+                    container.innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="bi bi-exclamation-triangle display-4 text-danger mb-3"></i>
+                            <h5>Search Failed</h5>
+                            <p class="text-danger">${error.message}</p>
+                            <p class="text-muted">Please try again or contact support if the problem persists.</p>
+                        </div>
+                    `;
                 });
         }
 
@@ -601,7 +744,35 @@
             const container = document.getElementById('resultsContainer');
             const countElement = document.getElementById('resultCount');
 
-            countElement.textContent = `${data.totalElements} results`;
+            // Validate response structure
+            if (!data || typeof data !== 'object') {
+                console.error('Invalid response data:', data);
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-exclamation-triangle display-4 text-danger mb-3"></i>
+                        <h5>Search Error</h5>
+                        <p class="text-danger">Invalid response from server</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Ensure we have the required properties
+            if (!data.content || !Array.isArray(data.content)) {
+                console.error('Response missing content array:', data);
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-exclamation-triangle display-4 text-warning mb-3"></i>
+                        <h5>Search Error</h5>
+                        <p class="text-warning">Unexpected response format from server</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Set result count (handle undefined gracefully)
+            const totalElements = data.totalElements || 0;
+            countElement.textContent = `${totalElements} results`;
 
             if (data.content.length === 0) {
                 container.innerHTML = `
@@ -643,10 +814,16 @@
                                         <i class="bi bi-paperclip me-1"></i>
                                         Attachment: <strong>${entry.fileName}</strong>
                                     </small>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="downloadAttachment('${entry.fileName}', ${entry.id})">
-                                        <i class="bi bi-download me-1"></i>
-                                        Download
-                                    </button>
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="downloadAttachment('${entry.fileName}', ${entry.id})">
+                                            <i class="bi bi-download me-1"></i>
+                                            Download
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-success" onclick="viewAttachment('${entry.fileName}', ${entry.id})">
+                                            <i class="bi bi-eye me-1"></i>
+                                            View
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ` : ''}
@@ -664,8 +841,9 @@
             const paginationContainer = document.getElementById('paginationContainer');
             const pagination = document.getElementById('pagination');
 
-            totalPages = data.totalPages;
-            currentPage = data.number;
+            // Handle missing pagination data gracefully
+            totalPages = data.totalPages || 0;
+            currentPage = data.number || 0;
 
             if (totalPages <= 1) {
                 paginationContainer.style.display = 'none';
@@ -844,6 +1022,174 @@
                     // Show error message
                     Utils.showAlert('Download failed: ' + error.message, 'danger');
                 });
+        }
+
+                function viewAttachment(fileName, chatEntryId) {
+            // Show loading state
+            const button = event.target.closest('button');
+            const originalContent = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
+            button.disabled = true;
+
+            // Make the view request with credentials
+            fetch(`/api/chat-entries/${chatEntryId}/view`, {
+                credentials: 'same-origin'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    // Create a URL for the blob
+                    const url = window.URL.createObjectURL(blob);
+
+                    // Store the blob URL and chat entry ID for download functionality
+                    window.currentAttachmentUrl = url;
+                    window.currentAttachmentFileName = fileName;
+                    window.currentChatEntryId = chatEntryId;
+
+                    // Determine how to display based on file type
+                    const fileExtension = fileName.toLowerCase().split('.').pop();
+
+                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
+                        // Open image in modal
+                        openImageInModal(url, fileName);
+                    } else if (['mp4', 'avi', 'mov', 'webm'].includes(fileExtension)) {
+                        // Open video in modal
+                        openVideoInModal(url, fileName);
+                    } else if (['mp3', 'wav', 'ogg'].includes(fileExtension)) {
+                        // Open audio in modal
+                        openAudioInModal(url, fileName);
+                    } else if (['pdf'].includes(fileExtension)) {
+                        // Open PDF in modal
+                        openPdfInModal(url, fileName);
+                    } else if (['txt'].includes(fileExtension)) {
+                        // Open text in modal
+                        openTextInModal(url, fileName);
+                    } else {
+                        // For other file types, show generic message in modal
+                        openGenericInModal(url, fileName);
+                    }
+
+                    // Reset button
+                    button.innerHTML = originalContent;
+                    button.disabled = false;
+                })
+                .catch(error => {
+                    console.error('View failed:', error);
+
+                    // Reset button
+                    button.innerHTML = originalContent;
+                    button.disabled = false;
+
+                    // Show error message
+                    Utils.showAlert('View failed: ' + error.message, 'danger');
+                });
+        }
+
+        function openImageInModal(url, fileName) {
+            // Set modal title
+            document.getElementById('attachmentViewerTitle').textContent = `Viewing: ${fileName}`;
+
+            // Set modal content
+            document.getElementById('attachmentViewerContent').innerHTML = `
+                <img src="${url}" alt="${fileName}" class="img-fluid" style="max-height: 70vh; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+            `;
+
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('attachmentViewerModal'));
+            modal.show();
+        }
+
+        function openVideoInModal(url, fileName) {
+            // Set modal title
+            document.getElementById('attachmentViewerTitle').textContent = `Viewing: ${fileName}`;
+
+            // Set modal content
+            document.getElementById('attachmentViewerContent').innerHTML = `
+                <video controls autoplay class="img-fluid" style="max-height: 70vh; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                    <source src="${url}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('attachmentViewerModal'));
+            modal.show();
+        }
+
+        function openAudioInModal(url, fileName) {
+            // Set modal title
+            document.getElementById('attachmentViewerTitle').textContent = `Viewing: ${fileName}`;
+
+            // Set modal content
+            document.getElementById('attachmentViewerContent').innerHTML = `
+                <audio controls autoplay style="width: 100%; max-width: 500px; margin: 20px 0;">
+                    <source src="${url}" type="audio/mpeg">
+                    Your browser does not support the audio tag.
+                </audio>
+            `;
+
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('attachmentViewerModal'));
+            modal.show();
+        }
+
+        function openPdfInModal(url, fileName) {
+            // Set modal title
+            document.getElementById('attachmentViewerTitle').textContent = `Viewing: ${fileName}`;
+
+            // Set modal content
+            document.getElementById('attachmentViewerContent').innerHTML = `
+                <iframe src="${url}" title="${fileName}" style="width: 100%; height: 70vh; border: none; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"></iframe>
+            `;
+
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('attachmentViewerModal'));
+            modal.show();
+        }
+
+        function openTextInModal(url, fileName) {
+            // Set modal title
+            document.getElementById('attachmentViewerTitle').textContent = `Viewing: ${fileName}`;
+
+            // Fetch text content and display in modal
+            fetch(url)
+                .then(response => response.text())
+                .then(text => {
+                    document.getElementById('attachmentViewerContent').innerHTML = `
+                        <div class="text-start">
+                            <pre style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); white-space: pre-wrap; word-wrap: break-word; font-family: 'Courier New', monospace; max-height: 70vh; overflow-y: auto;">${text}</pre>
+                        </div>
+                    `;
+
+                    // Show the modal
+                    const modal = new bootstrap.Modal(document.getElementById('attachmentViewerModal'));
+                    modal.show();
+                });
+        }
+
+        function openGenericInModal(url, fileName) {
+            // Set modal title
+            document.getElementById('attachmentViewerTitle').textContent = `Viewing: ${fileName}`;
+
+            // Set modal content
+            document.getElementById('attachmentViewerContent').innerHTML = `
+                <div class="text-center">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle display-4 text-info mb-3"></i>
+                        <h5>File Preview Not Available</h5>
+                        <p>This file type (${fileName.split('.').pop()}) cannot be previewed directly in the browser.</p>
+                        <p>Please use the Download button below to save the file and open it with an appropriate application.</p>
+                    </div>
+                </div>
+            `;
+
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('attachmentViewerModal'));
+            modal.show();
         }
     </script>
 </body>

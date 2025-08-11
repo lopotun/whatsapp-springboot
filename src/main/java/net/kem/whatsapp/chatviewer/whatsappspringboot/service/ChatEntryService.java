@@ -15,11 +15,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.repository.ChatEntryRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.CollectionUtils;
 
 @Slf4j
 @Service
@@ -75,13 +75,13 @@ public class ChatEntryService {
      * Save multiple chat entries in batch with user and chat association
      */
     public List<ChatEntryEntity> saveChatEntries(List<ChatEntryEntity> chatEntryEntities) {
-        if(CollectionUtils.isEmpty(chatEntryEntities)) {
+        if (CollectionUtils.isEmpty(chatEntryEntities)) {
             log.warn("No chat entries provided for batch save");
             return List.of();
         }
         List<ChatEntryEntity> saved = chatEntryRepository.saveAll(chatEntryEntities);
-        log.info("Saved {} chat entries in batch for user: {} and chat: {}",
-                saved.size(), chatEntryEntities.getFirst().getUserId(), chatEntryEntities.getFirst().getChatId());
+        log.info("Saved {} chat entries in batch for user: {} and chat: {}", saved.size(),
+                chatEntryEntities.getFirst().getUserId(), chatEntryEntities.getFirst().getChatId());
         return saved;
     }
 
@@ -89,13 +89,22 @@ public class ChatEntryService {
      * Check if a chat entry already exists based on unique constraint fields
      */
     public boolean existsByUniqueFields(Long userId, String chatId, LocalDateTime localDateTime,
-                                       String author, String payload, String fileName) {
-        return chatEntryRepository.existsByUniqueFields(userId, chatId, localDateTime, author, payload, fileName);
+            String author, String payload, String fileName) {
+        try {
+            return chatEntryRepository.existsByUniqueFields(userId, chatId, localDateTime, author,
+                    payload, fileName);
+        } catch (Exception e) {
+            log.warn("Error checking for existing entry: user={}, chat={}, time={}, author={} - {}",
+                    userId, chatId, localDateTime, author, e.getMessage());
+            // If we can't check, assume it doesn't exist to avoid blocking the upload
+            return false;
+        }
     }
 
     /**
      * Find chat entry by ID (user-specific)
      */
+    @Transactional(readOnly = true)
     public Optional<ChatEntryEntity> findById(Long id, Long userId) {
         return chatEntryRepository.findById(id).filter(entry -> entry.getUserId().equals(userId));
     }
@@ -103,6 +112,7 @@ public class ChatEntryService {
     /**
      * Get all chat entries for a user
      */
+    @Transactional(readOnly = true)
     public Page<ChatEntryEntity> findByUserId(Long userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return chatEntryRepository.findByUserId(userId, pageable);
@@ -111,6 +121,7 @@ public class ChatEntryService {
     /**
      * Get all chat entries for a specific chat of a user
      */
+    @Transactional(readOnly = true)
     public Page<ChatEntryEntity> findByUserIdAndChatId(Long userId, String chatId, int page,
             int size) {
         Pageable pageable = PageRequest.of(page, size);
@@ -148,173 +159,214 @@ public class ChatEntryService {
     /**
      * Search chat entries with multiple criteria (user-specific)
      */
+    @Transactional(readOnly = true)
     public Page<ChatEntryEntity> searchChatEntries(Long userId, String author, ChatEntry.Type type,
             LocalDateTime startDate, LocalDateTime endDate, Boolean hasAttachment,
             List<String> chatIds, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        try {
+            Pageable pageable = PageRequest.of(page, size);
 
-        // Use database-level filtering for better performance and to search all pages
-        Page<ChatEntryEntity> results;
+            // Use database-level filtering for better performance and to search all pages
+            Page<ChatEntryEntity> results;
 
-        if (type != null) {
-            // If type is specified, use the specific repository method
-            if (chatIds != null && !chatIds.isEmpty()) {
-                results = chatEntryRepository.findByUserIdAndChatIdInAndType(userId, chatIds, type,
-                        pageable);
-            } else {
-                results = chatEntryRepository.findByUserIdAndType(userId, type, pageable);
-            }
-        } else if (author != null && !author.trim().isEmpty()) {
-            // If author is specified, use the specific repository method
-            if (chatIds != null && !chatIds.isEmpty()) {
-                results = chatEntryRepository.findByUserIdAndChatIdInAndAuthor(userId, chatIds,
-                        author.trim(), pageable);
-            } else {
-                results =
-                        chatEntryRepository.findByUserIdAndAuthor(userId, author.trim(), pageable);
-            }
-        } else if (startDate != null || endDate != null) {
-            // If date range is specified, use the specific repository method
-            LocalDateTime start = startDate != null ? startDate : LocalDateTime.MIN;
-            LocalDateTime end = endDate != null ? endDate : LocalDateTime.MAX;
-            if (chatIds != null && !chatIds.isEmpty()) {
-                results = chatEntryRepository.findByUserIdAndChatIdInAndLocalDateTimeBetween(userId,
-                        chatIds, start, end, pageable);
-            } else {
-                results = chatEntryRepository.findByUserIdAndLocalDateTimeBetween(userId, start,
-                        end, pageable);
-            }
-        } else if (chatIds != null && !chatIds.isEmpty()) {
-            // If only chatIds are specified
-            results = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
-        } else {
-            // Default case - get all entries for user
-            results = chatEntryRepository.findByUserId(userId, pageable);
-        }
-
-        // Apply additional filters in memory only for complex combinations
-        // that can't be handled by database queries
-        List<ChatEntryEntity> filteredContent = results.getContent().stream().filter(entry -> {
-            // Filter by hasAttachment (this can't be easily done at database level)
-            if (hasAttachment != null) {
-                if (hasAttachment) {
-                    if (entry.getPath() == null || entry.getPath().isEmpty()) {
-                        return false;
-                    }
+            if (type != null) {
+                // If type is specified, use the specific repository method
+                if (chatIds != null && !chatIds.isEmpty()) {
+                    results = chatEntryRepository.findByUserIdAndChatIdInAndType(userId, chatIds,
+                            type, pageable);
                 } else {
-                    if (entry.getPath() != null && !entry.getPath().isEmpty()) {
-                        return false;
+                    results = chatEntryRepository.findByUserIdAndType(userId, type, pageable);
+                }
+            } else if (author != null && !author.trim().isEmpty()) {
+                // If author is specified, use the specific repository method
+                if (chatIds != null && !chatIds.isEmpty()) {
+                    results = chatEntryRepository.findByUserIdAndChatIdInAndAuthor(userId, chatIds,
+                            author.trim(), pageable);
+                } else {
+                    results = chatEntryRepository.findByUserIdAndAuthor(userId, author.trim(),
+                            pageable);
+                }
+            } else if (startDate != null || endDate != null) {
+                // If date range is specified, use the specific repository method
+                LocalDateTime start = startDate != null ? startDate : LocalDateTime.MIN;
+                LocalDateTime end = endDate != null ? endDate : LocalDateTime.MAX;
+                if (chatIds != null && !chatIds.isEmpty()) {
+                    results = chatEntryRepository.findByUserIdAndChatIdInAndLocalDateTimeBetween(
+                            userId, chatIds, start, end, pageable);
+                } else {
+                    results = chatEntryRepository.findByUserIdAndLocalDateTimeBetween(userId, start,
+                            end, pageable);
+                }
+            } else if (chatIds != null && !chatIds.isEmpty()) {
+                // If only chatIds are specified
+                results = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
+            } else {
+                // Default case - get all entries for user
+                results = chatEntryRepository.findByUserId(userId, pageable);
+            }
+
+            // Apply additional filters in memory only for complex combinations
+            // that can't be handled by database queries
+            List<ChatEntryEntity> filteredContent = results.getContent().stream().filter(entry -> {
+                // Filter by hasAttachment (this can't be easily done at database level)
+                if (hasAttachment != null) {
+                    if (hasAttachment) {
+                        if (entry.getPath() == null || entry.getPath().isEmpty()) {
+                            return false;
+                        }
+                    } else {
+                        if (entry.getPath() != null && !entry.getPath().isEmpty()) {
+                            return false;
+                        }
                     }
                 }
-            }
 
-            return true;
-        }).collect(Collectors.toList());
+                return true;
+            }).collect(Collectors.toList());
 
-        // Create a new page with filtered content
-        Page<ChatEntryEntity> filteredPage = new org.springframework.data.domain.PageImpl<>(
-                filteredContent, pageable, results.getTotalElements());
+            // Create a new page with filtered content
+            Page<ChatEntryEntity> filteredPage = new org.springframework.data.domain.PageImpl<>(
+                    filteredContent, pageable, results.getTotalElements());
 
-        return sanitizeResults(filteredPage);
+            return sanitizeResults(filteredPage);
+        } catch (Exception e) {
+            log.error("Error during chat entry search for user: {} - {}", userId, e.getMessage(),
+                    e);
+            // Return empty results instead of throwing exception
+            Pageable pageable = PageRequest.of(page, size);
+            Page<ChatEntryEntity> emptyPage =
+                    new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+            log.debug("Returning empty page for failed search: {}", emptyPage);
+            return emptyPage;
+        }
     }
 
     /**
      * Search chat entries by keyword (user-specific)
      */
+    @Transactional(readOnly = true)
     public Page<ChatEntryEntity> searchByKeyword(Long userId, String keyword, List<String> chatIds,
             int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        try {
+            Pageable pageable = PageRequest.of(page, size);
 
-        Page<ChatEntryEntity> results;
+            Page<ChatEntryEntity> results;
 
-        if (chatIds != null && !chatIds.isEmpty()) {
-            results = chatEntryRepository.searchByUserIdAndChatIdInAndKeyword(userId, chatIds,
-                    keyword, pageable);
-        } else {
-            results = chatEntryRepository.searchByUserIdAndKeyword(userId, keyword, pageable);
-        }
-
-        return sanitizeResults(results);
-    }
-
-    /**
-     * Search chat entries by keyword in a specific chat (user-specific)
-     */
-    public Page<ChatEntryEntity> searchByKeywordInChat(Long userId, String chatId, String keyword,
-            int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-
-        Page<ChatEntryEntity> results = chatEntryRepository
-                .searchByUserIdAndChatIdAndKeyword(userId, chatId, keyword, pageable);
-
-        return sanitizeResults(results);
-    }
-
-    /**
-     * Advanced search with multiple criteria (user-specific)
-     */
-    public Page<ChatEntryEntity> advancedSearch(Long userId, String keyword, String author,
-            ChatEntry.Type type, LocalDateTime startDate, LocalDateTime endDate,
-            List<String> chatIds, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-
-        // Start with keyword search if provided
-        Page<ChatEntryEntity> results;
-        if (keyword != null && !keyword.trim().isEmpty()) {
             if (chatIds != null && !chatIds.isEmpty()) {
                 results = chatEntryRepository.searchByUserIdAndChatIdInAndKeyword(userId, chatIds,
                         keyword, pageable);
             } else {
                 results = chatEntryRepository.searchByUserIdAndKeyword(userId, keyword, pageable);
             }
-        } else {
-            // No keyword, use basic user query
-            if (chatIds != null && !chatIds.isEmpty()) {
-                results = chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
-            } else {
-                results = chatEntryRepository.findByUserId(userId, pageable);
-            }
+
+            return sanitizeResults(results);
+        } catch (Exception e) {
+            log.error("Error during keyword search for user: {} - {}", userId, e.getMessage(), e);
+            // Return empty results instead of throwing exception
+            Pageable pageable = PageRequest.of(page, size);
+            return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
         }
+    }
 
-        // Apply additional filters in memory
-        List<ChatEntryEntity> filteredContent = results.getContent().stream().filter(entry -> {
-            // Filter by author
-            if (author != null && !author.trim().isEmpty()) {
-                if (!entry.getAuthor().equalsIgnoreCase(author.trim())) {
-                    return false;
+    /**
+     * Search chat entries by keyword in a specific chat (user-specific)
+     */
+    @Transactional(readOnly = true)
+    public Page<ChatEntryEntity> searchByKeywordInChat(Long userId, String chatId, String keyword,
+            int page, int size) {
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+
+            Page<ChatEntryEntity> results = chatEntryRepository
+                    .searchByUserIdAndChatIdAndKeyword(userId, chatId, keyword, pageable);
+
+            return sanitizeResults(results);
+        } catch (Exception e) {
+            log.error(
+                    "Error during keyword search in chat for user: {}, chat: {}, keyword: {} - {}",
+                    userId, chatId, keyword, e.getMessage(), e);
+            // Return empty results instead of throwing exception
+            Pageable pageable = PageRequest.of(page, size);
+            return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+        }
+    }
+
+    /**
+     * Advanced search with multiple criteria (user-specific)
+     */
+    @Transactional(readOnly = true)
+    public Page<ChatEntryEntity> advancedSearch(Long userId, String keyword, String author,
+            ChatEntry.Type type, LocalDateTime startDate, LocalDateTime endDate,
+            List<String> chatIds, int page, int size) {
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+
+            // Start with keyword search if provided
+            Page<ChatEntryEntity> results;
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                if (chatIds != null && !chatIds.isEmpty()) {
+                    results = chatEntryRepository.searchByUserIdAndChatIdInAndKeyword(userId,
+                            chatIds, keyword, pageable);
+                } else {
+                    results =
+                            chatEntryRepository.searchByUserIdAndKeyword(userId, keyword, pageable);
+                }
+            } else {
+                // No keyword, use basic user query
+                if (chatIds != null && !chatIds.isEmpty()) {
+                    results =
+                            chatEntryRepository.findByUserIdAndChatIdIn(userId, chatIds, pageable);
+                } else {
+                    results = chatEntryRepository.findByUserId(userId, pageable);
                 }
             }
 
-            // Filter by type
-            if (type != null) {
-                if (!entry.getType().equals(type)) {
-                    return false;
+            // Apply additional filters in memory
+            List<ChatEntryEntity> filteredContent = results.getContent().stream().filter(entry -> {
+                // Filter by author
+                if (author != null && !author.trim().isEmpty()) {
+                    if (!entry.getAuthor().equalsIgnoreCase(author.trim())) {
+                        return false;
+                    }
                 }
-            }
 
-            // Filter by start date
-            if (startDate != null) {
-                if (entry.getLocalDateTime() == null
-                        || entry.getLocalDateTime().isBefore(startDate)) {
-                    return false;
+                // Filter by type
+                if (type != null) {
+                    if (!entry.getType().equals(type)) {
+                        return false;
+                    }
                 }
-            }
 
-            // Filter by end date
-            if (endDate != null) {
-                if (entry.getLocalDateTime() == null || entry.getLocalDateTime().isAfter(endDate)) {
-                    return false;
+                // Filter by start date
+                if (startDate != null) {
+                    if (entry.getLocalDateTime() == null
+                            || entry.getLocalDateTime().isBefore(startDate)) {
+                        return false;
+                    }
                 }
-            }
 
-            return true;
-        }).collect(Collectors.toList());
+                // Filter by end date
+                if (endDate != null) {
+                    if (entry.getLocalDateTime() == null
+                            || entry.getLocalDateTime().isAfter(endDate)) {
+                        return false;
+                    }
+                }
 
-        // Create a new page with filtered content
-        Page<ChatEntryEntity> filteredPage = new org.springframework.data.domain.PageImpl<>(
-                filteredContent, pageable, results.getTotalElements());
+                return true;
+            }).collect(Collectors.toList());
 
-        return sanitizeResults(filteredPage);
+            // Create a new page with filtered content
+            Page<ChatEntryEntity> filteredPage = new org.springframework.data.domain.PageImpl<>(
+                    filteredContent, pageable, results.getTotalElements());
+
+            return sanitizeResults(filteredPage);
+        } catch (Exception e) {
+            log.error("Error during advanced search for user: {} - {}", userId, e.getMessage(), e);
+            // Return empty results instead of throwing exception
+            Pageable pageable = PageRequest.of(page, size);
+            return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+        }
     }
 
     /**
@@ -402,17 +454,66 @@ public class ChatEntryService {
     }
 
     /**
-     * Sanitize search results to remove sensitive information
+     * Sanitize search results to remove sensitive information Creates defensive copies to avoid
+     * modifying the original entities
      */
     private Page<ChatEntryEntity> sanitizeResults(Page<ChatEntryEntity> results) {
-        results.getContent().forEach(this::sanitizeEntry);
-        return results;
+        if (results == null || results.getContent() == null) {
+            log.warn("Attempted to sanitize null or empty results");
+            return results;
+        }
+
+        // Create defensive copies to avoid modifying original entities
+        List<ChatEntryEntity> sanitizedContent = results.getContent().stream()
+                .map(this::createSanitizedCopy).collect(Collectors.toList());
+
+        // Create a new page with sanitized content
+        return new org.springframework.data.domain.PageImpl<>(sanitizedContent,
+                results.getPageable(), results.getTotalElements());
+    }
+
+    /**
+     * Create a sanitized copy of a chat entry to avoid modifying the original
+     */
+    private ChatEntryEntity createSanitizedCopy(ChatEntryEntity entry) {
+        if (entry == null) {
+            log.warn("Attempted to sanitize null entry");
+            return null;
+        }
+
+        // Create a new entity with the same data
+        ChatEntryEntity copy = new ChatEntryEntity();
+        copy.setId(entry.getId());
+        copy.setUserId(entry.getUserId());
+        copy.setChatId(entry.getChatId());
+        copy.setAuthor(entry.getAuthor());
+        copy.setLocalDateTime(entry.getLocalDateTime());
+        copy.setType(entry.getType());
+        copy.setPath(entry.getPath());
+        copy.setFileName(entry.getFileName());
+        copy.setAttachment(entry.getAttachment());
+
+        // Sanitize the payload if it exists
+        if (entry.getPayload() != null) {
+            copy.setPayload(sanitizePayload(entry.getPayload()));
+        } else {
+            copy.setPayload(null);
+        }
+
+        return copy;
     }
 
     /**
      * Sanitize a single chat entry to remove sensitive information
+     *
+     * @deprecated Use createSanitizedCopy instead to avoid modifying original entities
      */
+    @Deprecated
     private ChatEntryEntity sanitizeEntry(ChatEntryEntity entry) {
+        if (entry == null) {
+            log.warn("Attempted to sanitize null entry");
+            return null;
+        }
         if (entry.getPayload() != null) {
             entry.setPayload(sanitizePayload(entry.getPayload()));
         }

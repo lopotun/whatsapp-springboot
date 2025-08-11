@@ -88,8 +88,15 @@ public class ChatEntryController {
             @RequestParam(defaultValue = "20") int size) {
 
         Long userId = getCurrentUserId();
+        log.debug("Search request - user: {}, author: {}, type: {}, page: {}, size: {}", userId,
+                author, type, page, size);
+
         Page<ChatEntryEntity> results = chatEntryService.searchChatEntries(userId, author, type,
                 startDate, endDate, hasAttachment, chatIds, page, size);
+
+        log.debug("Search results - total: {}, content size: {}, page: {}",
+                results.getTotalElements(), results.getContent().size(), results.getNumber());
+
         return ResponseEntity.ok(results);
     }
 
@@ -133,8 +140,16 @@ public class ChatEntryController {
             @RequestParam(defaultValue = "20") int size) {
 
         Long userId = getCurrentUserId();
+        log.debug(
+                "Advanced search request - user: {}, keyword: {}, author: {}, type: {}, page: {}, size: {}",
+                userId, keyword, author, type, page, size);
+
         Page<ChatEntryEntity> results = chatEntryService.advancedSearch(userId, keyword, author,
                 type, startDate, endDate, chatIds, page, size);
+
+        log.debug("Advanced search results - total: {}, content size: {}, page: {}",
+                results.getTotalElements(), results.getContent().size(), results.getNumber());
+
         return ResponseEntity.ok(results);
     }
 
@@ -208,7 +223,8 @@ public class ChatEntryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
 
         Long userId = getCurrentUserId();
-        List<ChatEntryEntity> results = chatEntryService.findByTypeAndDateRange(userId, type, start, end);
+        List<ChatEntryEntity> results =
+                chatEntryService.findByTypeAndDateRange(userId, type, start, end);
         return ResponseEntity.ok(results);
     }
 
@@ -285,6 +301,75 @@ public class ChatEntryController {
         } catch (Exception e) {
             log.error("Error downloading attachment for chat entry {}: {}", id, e.getMessage());
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * View attachment for a chat entry (user-specific)
+     */
+    @GetMapping("/{id}/view")
+    public ResponseEntity<Resource> viewAttachment(@PathVariable Long id) {
+        Long userId = getCurrentUserId();
+        Optional<ChatEntryEntity> chatEntry = chatEntryService.findById(id, userId);
+
+        if (chatEntry.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        ChatEntryEntity entry = chatEntry.get();
+        if (entry.getFileName() == null || entry.getFileName().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            Resource resource = chatEntryService.downloadAttachment(entry.getId(), userId);
+
+            // Determine content type based on file extension
+            String contentType = determineContentType(entry.getFileName());
+
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType))
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("Error viewing attachment for chat entry {}: {}", id, e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Determine content type based on file extension
+     */
+    private String determineContentType(String fileName) {
+        if (fileName == null) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+
+        String lowerFileName = fileName.toLowerCase();
+        if (lowerFileName.endsWith(".jpg") || lowerFileName.endsWith(".jpeg")) {
+            return "image/jpeg";
+        } else if (lowerFileName.endsWith(".png")) {
+            return "image/png";
+        } else if (lowerFileName.endsWith(".gif")) {
+            return "image/gif";
+        } else if (lowerFileName.endsWith(".webp")) {
+            return "image/webp";
+        } else if (lowerFileName.endsWith(".mp4")) {
+            return "video/mp4";
+        } else if (lowerFileName.endsWith(".avi")) {
+            return "video/x-msvideo";
+        } else if (lowerFileName.endsWith(".mov")) {
+            return "video/quicktime";
+        } else if (lowerFileName.endsWith(".mp3")) {
+            return "audio/mpeg";
+        } else if (lowerFileName.endsWith(".wav")) {
+            return "audio/wav";
+        } else if (lowerFileName.endsWith(".pdf")) {
+            return "application/pdf";
+        } else if (lowerFileName.endsWith(".txt")) {
+            return "text/plain";
+        } else if (lowerFileName.endsWith(".doc") || lowerFileName.endsWith(".docx")) {
+            return "application/msword";
+        } else {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
     }
 }

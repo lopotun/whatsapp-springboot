@@ -39,19 +39,15 @@ public class AttachmentService {
                 if (!attachment.getFileSize().equals(fileSize)) {
                     attachment.setFileSize(fileSize);
                     log.warn("New file size {} <> {} (existing) for attachment with hash {}",
-                        fileSize, attachment.getFileSize(), hash);
+                            fileSize, attachment.getFileSize(), hash);
                 }
             }
             attachment = attachmentRepository.save(attachment);
             log.debug("Updated existing attachment with hash: {}", hash);
         } else {
             // Create new attachment
-            attachment = Attachment.builder()
-                    .hash(hash)
-                    .lastAddedTimestamp(LocalDateTime.now())
-                    .status((byte) 1)
-                    .fileSize(fileSize)
-                    .build();
+            attachment = Attachment.builder().hash(hash).lastAddedTimestamp(LocalDateTime.now())
+                    .status((byte) 1).fileSize(fileSize).build();
             attachment = attachmentRepository.save(attachment);
             log.info("Created new attachment with hash: {} and size: {} bytes", hash, fileSize);
         }
@@ -136,6 +132,16 @@ public class AttachmentService {
     }
 
     /**
+     * Get total file size for attachments belonging to a specific user This calculates the total
+     * size by looking at attachments referenced in user's chat entries
+     */
+    public Long getTotalFileSizeForUser(Long userId) {
+        // For now, return the total size of all active attachments
+        // In a production system, you would implement proper user-specific attachment tracking
+        return attachmentRepository.getTotalFileSizeForUser(userId);
+    }
+
+    /**
      * Update attachment status
      */
     public Attachment updateAttachmentStatus(String hash, Byte status) {
@@ -150,8 +156,8 @@ public class AttachmentService {
     }
 
     /**
-     * Generate file path for attachment based on hash
-     * Creates hierarchical directory structure: hash.substring(0,3)/hash.substring(3,6)/hash
+     * Generate file path for attachment based on hash Creates hierarchical directory structure:
+     * hash.substring(0,3)/hash.substring(3,6)/hash
      */
     public String generateFilePath(String hash) {
         if (hash == null || hash.length() < 6) {

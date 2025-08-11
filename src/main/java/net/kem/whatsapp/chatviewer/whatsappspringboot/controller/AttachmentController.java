@@ -5,12 +5,15 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.Attachment;
+import net.kem.whatsapp.chatviewer.whatsappspringboot.model.User;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.AttachmentService;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -127,6 +130,26 @@ public class AttachmentController {
     public ResponseEntity<Long> getTotalFileSizeByStatus(@PathVariable Byte status) {
         Long totalSize = attachmentService.getTotalFileSizeByStatus(status);
         return ResponseEntity.ok(totalSize);
+    }
+
+    /**
+     * Get total file size for current user's attachments
+     */
+    @GetMapping("/stats/user/total-size")
+    public ResponseEntity<Long> getCurrentUserTotalFileSize() {
+        try {
+            // Get current user ID from authentication
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String username = authentication.getName();
+            Long userId = userService.findByUsername(username).map(User::getId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            Long totalSize = attachmentService.getTotalFileSizeForUser(userId);
+            return ResponseEntity.ok(totalSize);
+        } catch (Exception e) {
+            log.error("Error getting total file size for user: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     /**

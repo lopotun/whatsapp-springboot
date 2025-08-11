@@ -25,14 +25,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
-import lombok.Getter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,7 +42,8 @@ public class ChatUploadService {
 
     private static final Pattern TIMESTAMP_PATTERN =
             Pattern.compile("(\\d{1,2}/\\d{1,2}/\\d{2},\\s\\d{1,2}:\\d{2})\\s-\\s");
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("M/d/yy, HH:mm");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("M/d/yy, HH:mm");
     private static final long MAX_FILE_SIZE = 5 * 100 * 1024 * 1024; // 500MB limit
     private static final int MAX_ENTRIES = 1000; // Limit number of entries to prevent infinite
     private static final int UPLOAD_REQUEST_TIMEOUT = 20 * 60 * 1000; // Limit number of entries per
@@ -68,10 +68,11 @@ public class ChatUploadService {
         baseName = baseName.replaceAll("[^a-zA-Z0-9]", "_");
 
         // Add timestamp to ensure uniqueness
-        //String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        // String timestamp =
+        // LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 
         // Add user ID to prevent conflicts between users
-        //return String.format("user%d_%s_%s", userId, baseName, timestamp);
+        // return String.format("user%d_%s_%s", userId, baseName, timestamp);
         return String.format("user%d_%s", userId, baseName);
     }
 
@@ -80,7 +81,8 @@ public class ChatUploadService {
      */
     @Transactional
     public UploadResult uploadTextFile(MultipartFile file, Long userId) {
-        log.info("Starting text file upload for user: {} with file: {}", userId, file.getOriginalFilename());
+        log.info("Starting text file upload for user: {} with file: {}", userId,
+                file.getOriginalFilename());
 
         UploadResult.UploadResultBuilder resultBuilder = UploadResult.builder()
                 .originalFileName(file.getOriginalFilename()).fileType("text").success(false);
@@ -88,7 +90,8 @@ public class ChatUploadService {
         try {
             // Validate file size
             if (file.getSize() > MAX_FILE_SIZE) {
-                String errorMsg = "File size exceeds maximum allowed size of " + MAX_FILE_SIZE + " bytes";
+                String errorMsg =
+                        "File size exceeds maximum allowed size of " + MAX_FILE_SIZE + " bytes";
                 log.warn("File size validation failed for user: {} - {}", userId, errorMsg);
                 return resultBuilder.errorMessage(errorMsg).build();
             }
@@ -109,7 +112,8 @@ public class ChatUploadService {
             Map<String, String> filenameToHashMap = new HashMap<>();
 
             try (InputStream inputStream = file.getInputStream();
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                    BufferedReader reader =
+                            new BufferedReader(new InputStreamReader(inputStream))) {
 
                 String line;
                 StringBuilder currentEntry = new StringBuilder();
@@ -134,7 +138,6 @@ public class ChatUploadService {
 
                 // Process the last entry
                 if (!currentEntry.isEmpty() && entryCount.get() < MAX_ENTRIES) {
-                    parseChatEntry(currentEntry.toString()).ifPresent(chatEntries::add);
                     parseChatEntry(currentEntry.toString()).ifPresent(chatEntry -> {
                         chatEntries.add(chatEntry);
                         entryCount.getAndIncrement();
@@ -142,13 +145,20 @@ public class ChatUploadService {
                 }
             }
 
-            log.info("Parsed {} chat entries from text file for user: {}", chatEntries.size(), userId);
+            // Remove any duplicate entries that might have been parsed
+            log.info("Parsed {} chat entries, removing duplicates...", chatEntries.size());
+            List<ChatEntry> deduplicatedEntries = deduplicateEntries(new ArrayList<>(chatEntries));
+            log.info("After deduplication: {} unique entries", deduplicatedEntries.size());
+
+            log.info("Parsed {} chat entries from text file for user: {}",
+                    deduplicatedEntries.size(), userId);
 
             // Save to database
-            List<ChatEntryEntity> savedEntries =
-                    performIncrementalUpdate(chatEntries, userId, chatId, filenameToHashMap);
+            List<ChatEntryEntity> savedEntries = performIncrementalUpdate(
+                    new LinkedHashSet<>(deduplicatedEntries), userId, chatId, filenameToHashMap);
 
-            resultBuilder.totalEntries(savedEntries.size()).totalAttachments(filenameToHashMap.size()).success(true);
+            resultBuilder.totalEntries(savedEntries.size())
+                    .totalAttachments(filenameToHashMap.size()).success(true);
 
             log.info("Successfully uploaded text file for user: {} - {} entries, {} attachments",
                     userId, savedEntries.size(), filenameToHashMap.size());
@@ -165,7 +175,8 @@ public class ChatUploadService {
      */
     @Transactional
     public UploadResult uploadZipFile(MultipartFile file, Long userId) {
-        log.info("Starting ZIP file upload for user: {} with file: {}", userId, file.getOriginalFilename());
+        log.info("Starting ZIP file upload for user: {} with file: {}", userId,
+                file.getOriginalFilename());
 
         UploadResult.UploadResultBuilder resultBuilder = UploadResult.builder()
                 .originalFileName(file.getOriginalFilename()).fileType("zip").success(false);
@@ -227,12 +238,18 @@ public class ChatUploadService {
                     }
                 }
             }
-            log.info("Processed ZIP file for user: {} - {} chat entries, {} attachments",
-                    userId, chatEntries.size(), filenameToChecksum.size());
+            // Remove any duplicate entries that might have been parsed
+            log.info("Processed ZIP file for user: {} - {} chat entries, removing duplicates...",
+                    userId, chatEntries.size());
+            List<ChatEntry> deduplicatedEntries = deduplicateEntries(new ArrayList<>(chatEntries));
+            log.info("After deduplication: {} unique entries", deduplicatedEntries.size());
+
+            log.info("Processed ZIP file for user: {} - {} chat entries, {} attachments", userId,
+                    deduplicatedEntries.size(), filenameToChecksum.size());
 
             // Save to database
-            List<ChatEntryEntity> savedEntries =
-                    performIncrementalUpdate(chatEntries, userId, chatId, filenameToChecksum);
+            List<ChatEntryEntity> savedEntries = performIncrementalUpdate(
+                    new LinkedHashSet<>(deduplicatedEntries), userId, chatId, filenameToChecksum);
 
             resultBuilder.totalEntries(savedEntries.size())
                     .totalAttachments(filenameToChecksum.size()).extractedFiles(extractedFiles)
@@ -251,7 +268,8 @@ public class ChatUploadService {
     /**
      * Process chat text stream and extract chat entries
      */
-    private void processChatTextStream(InputStream chatTextStream, Set<ChatEntry> chatEntries) throws IOException {
+    private void processChatTextStream(InputStream chatTextStream, Set<ChatEntry> chatEntries)
+            throws IOException {
         // Use BufferedReader but don't let it close the underlying stream
         BufferedReader reader = new BufferedReader(new InputStreamReader(chatTextStream) {
             @Override
@@ -315,7 +333,8 @@ public class ChatUploadService {
                 // Check file size limit early
                 totalBytes += bytesRead;
                 if (totalBytes > MAX_FILE_SIZE) {
-                    log.warn("Multimedia file too large: {} ({} bytes) for user: {}", fileName, totalBytes, userId);
+                    log.warn("Multimedia file too large: {} ({} bytes) for user: {}", fileName,
+                            totalBytes, userId);
                     return null;
                 }
 
@@ -327,7 +346,8 @@ public class ChatUploadService {
                     // Switch to temp file
                     try {
                         tempFile = Files.createTempFile("whatsapp_upload_", ".tmp");
-                        log.debug("Switching to temp file for large multimedia: {} -> {}", fileName, tempFile);
+                        log.debug("Switching to temp file for large multimedia: {} -> {}", fileName,
+                                tempFile);
 
                         // Write existing data to temp file
                         Files.write(tempFile, baos.toByteArray());
@@ -337,7 +357,8 @@ public class ChatUploadService {
                         // Append current buffer to temp file
                         byte[] bufferToWrite = new byte[bytesRead];
                         System.arraycopy(buffer, 0, bufferToWrite, 0, bytesRead);
-                        Files.write(tempFile, bufferToWrite, java.nio.file.StandardOpenOption.APPEND);
+                        Files.write(tempFile, bufferToWrite,
+                                java.nio.file.StandardOpenOption.APPEND);
 
                     } catch (IOException e) {
                         log.error("Failed to create temp file for multimedia: {}", fileName, e);
@@ -365,7 +386,8 @@ public class ChatUploadService {
             boolean finalFileExists = Files.exists(finalFilePath);
 
             if (finalFileExists) {
-                log.debug("File already exists, skipping save: {} (hash: {})", fileName, contentHash);
+                log.debug("File already exists, skipping save: {} (hash: {})", fileName,
+                        contentHash);
                 // Temp file will be cleaned up in finally block
             } else {
                 // Final file doesn't exist, we need to save it
@@ -384,7 +406,8 @@ public class ChatUploadService {
                         log.info("Moved temp file to final location: {} -> {} (size: {} bytes)",
                                 fileName, finalFilePath, totalBytes);
                     } catch (IOException e) {
-                        log.error("Failed to move temp file to final location: {} -> {}", tempFile, finalFilePath, e);
+                        log.error("Failed to move temp file to final location: {} -> {}", tempFile,
+                                finalFilePath, e);
                         throw new RuntimeException("Failed to move temp file", e);
                     }
                 } else {
@@ -418,13 +441,13 @@ public class ChatUploadService {
     /**
      * Convert byte array to hex string efficiently
      */
-    //private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
+    // private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
     private String bytesToHex(byte[] bytes) {
         final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
         char[] hexChars = new char[bytes.length * 2];
         for (int i = 0; i < bytes.length; i++) {
             int v = bytes[i] & 0xFF;
-            hexChars[i * 2]     = HEX_ARRAY[v >>> 4];
+            hexChars[i * 2] = HEX_ARRAY[v >>> 4];
             hexChars[i * 2 + 1] = HEX_ARRAY[v & 0x0F];
         }
         return new String(hexChars);
@@ -434,7 +457,8 @@ public class ChatUploadService {
     /**
      * Save file to filesystem with proper error handling
      */
-    private void saveFileToSystem(Path filePath, byte[] fileContent, String fileName, int totalBytes) {
+    private void saveFileToSystem(Path filePath, byte[] fileContent, String fileName,
+            int totalBytes) {
         try {
             // Create parent directories if they don't exist
             Path parentDir = filePath.getParent();
@@ -445,10 +469,12 @@ public class ChatUploadService {
 
             // Write the file content atomically
             Files.write(filePath, fileContent);
-            log.info("Saved multimedia file: {} to path: {} (size: {} bytes)", fileName, filePath, totalBytes);
+            log.info("Saved multimedia file: {} to path: {} (size: {} bytes)", fileName, filePath,
+                    totalBytes);
 
         } catch (Exception e) {
-            log.error("Failed to save multimedia file to filesystem: {} - {}", fileName, e.getMessage());
+            log.error("Failed to save multimedia file to filesystem: {} - {}", fileName,
+                    e.getMessage());
             // Don't throw exception, continue processing
         }
     }
@@ -456,7 +482,8 @@ public class ChatUploadService {
     /**
      * Save attachment information to database with proper error handling
      */
-    private void saveAttachmentToDatabase(String contentHash, int totalBytes, String fileName, Long userId) {
+    private void saveAttachmentToDatabase(String contentHash, int totalBytes, String fileName,
+            Long userId) {
         try {
             attachmentService.saveAttachment(contentHash, (long) totalBytes);
             log.debug("Saved attachment: {} with hash: {} and size: {} bytes for user: {}",
@@ -471,10 +498,13 @@ public class ChatUploadService {
      * Perform incremental update of chat entries, linking attachments
      */
     private List<ChatEntryEntity> performIncrementalUpdate(Set<ChatEntry> newEntries, Long userId,
-                                                          String chatId, Map<String, String> filenameToHashMap) {
-        log.info("Performing incremental update for {} entries, user: {}, chat: {}", newEntries.size(), userId, chatId);
+            String chatId, Map<String, String> filenameToHashMap) {
+        log.info("Performing incremental update for {} entries, user: {}, chat: {}",
+                newEntries.size(), userId, chatId);
 
         List<ChatEntryEntity> savedEntries = new ArrayList<>();
+        int skippedDuplicates = 0;
+        int constraintViolations = 0;
 
         // Process entries one by one to handle duplicates gracefully
         for (ChatEntry entry : newEntries) {
@@ -483,14 +513,14 @@ public class ChatUploadService {
                 String entryKey = createEntryKey(entry);
 
                 // Check if this entry already exists in the database
-                boolean exists = chatEntryService.existsByUniqueFields(
-                    userId, chatId, entry.getLocalDateTime(), entry.getAuthor(),
-                    entry.getPayload(), entry.getFileName()
-                );
+                boolean exists = chatEntryService.existsByUniqueFields(userId, chatId,
+                        entry.getLocalDateTime(), entry.getAuthor(), entry.getPayload(),
+                        entry.getFileName());
 
                 if (exists) {
                     log.debug("Skipping duplicate entry: user={}, chat={}, time={}, author={}",
-                             userId, chatId, entry.getLocalDateTime(), entry.getAuthor());
+                            userId, chatId, entry.getLocalDateTime(), entry.getAuthor());
+                    skippedDuplicates++;
                     continue;
                 }
 
@@ -498,7 +528,8 @@ public class ChatUploadService {
                 ChatEntryEntity entity = ChatEntryEntity.fromChatEntry(entry, userId, chatId);
 
                 // Link attachment if this entry has a filename that matches our hash map
-                if (entry.getFileName() != null && filenameToHashMap.containsKey(entry.getFileName())) {
+                if (entry.getFileName() != null
+                        && filenameToHashMap.containsKey(entry.getFileName())) {
                     String hash = filenameToHashMap.get(entry.getFileName());
 
                     // Find the attachment by hash
@@ -508,17 +539,30 @@ public class ChatUploadService {
                     });
                 }
 
-                // Save individual entity with error handling
+                // Save individual entity with improved error handling
                 try {
                     ChatEntryEntity savedEntity = chatEntryService.saveChatEntry(entity);
                     savedEntries.add(savedEntity);
                 } catch (Exception saveException) {
-                    // Handle constraint violation gracefully
-                    if (saveException.getMessage() != null &&
-                        saveException.getMessage().contains("duplicate key value violates unique constraint")) {
-                        log.debug("Entry already exists (concurrent insert), skipping: {}", entryKey);
+                    // Handle constraint violation gracefully with better error detection
+                    String errorMessage = saveException.getMessage();
+                    if (errorMessage != null) {
+                        if (errorMessage.contains("duplicate key value violates unique constraint")
+                                || errorMessage.contains("idx_chat_entries_unique_entry")) {
+                            log.debug(
+                                    "Entry already exists (constraint violation), skipping: {} - {}",
+                                    entryKey, errorMessage);
+                            constraintViolations++;
+                        } else if (errorMessage.contains("duplicate key")) {
+                            log.debug("Entry already exists (duplicate key), skipping: {} - {}",
+                                    entryKey, errorMessage);
+                            constraintViolations++;
+                        } else {
+                            log.error("Failed to save chat entry: {} - {}", entry, errorMessage);
+                        }
                     } else {
-                        log.error("Failed to save chat entry: {} - {}", entry, saveException.getMessage());
+                        log.error("Failed to save chat entry: {} - Unknown error", entry,
+                                saveException);
                     }
                 }
 
@@ -528,7 +572,9 @@ public class ChatUploadService {
             }
         }
 
-        log.info("Successfully saved {} new chat entries for user: {}, chat: {}", savedEntries.size(), userId, chatId);
+        log.info(
+                "Incremental update completed for user: {}, chat: {} - Saved: {}, Skipped duplicates: {}, Constraint violations: {}",
+                userId, chatId, savedEntries.size(), skippedDuplicates, constraintViolations);
         return savedEntries;
     }
 
@@ -537,7 +583,8 @@ public class ChatUploadService {
     }
 
     private boolean isChatTextFile(String fileName) {
-        return fileName.toLowerCase().startsWith("whatsapp chat") && fileName.toLowerCase().endsWith(".txt");
+        return fileName.toLowerCase().startsWith("whatsapp chat")
+                && fileName.toLowerCase().endsWith(".txt");
     }
 
     private Optional<ChatEntry> parseChatEntry(String entryText) {
@@ -587,7 +634,8 @@ public class ChatUploadService {
                 return Optional.of(builder.build());
             }
         }
-        // The line does not start with a valid timestamp. It magit be continuation of a previous entry
+        // The line does not start with a valid timestamp. It magit be continuation of a previous
+        // entry
         return Optional.empty();
     }
 
@@ -626,8 +674,8 @@ public class ChatUploadService {
      */
     private String createEntryKey(ChatEntry entry) {
         return String.format("%s_%s_%s_%s", entry.getLocalDateTime(), entry.getAuthor(),
-            entry.getPayload() != null ? entry.getPayload() : "",
-            entry.getFileName() != null ? entry.getFileName() : "");
+                entry.getPayload() != null ? entry.getPayload() : "",
+                entry.getFileName() != null ? entry.getFileName() : "");
     }
 
     /**
@@ -635,8 +683,8 @@ public class ChatUploadService {
      */
     private String createEntryKey(ChatEntryEntity entry) {
         return String.format("%s_%s_%s_%s", entry.getLocalDateTime(), entry.getAuthor(),
-            entry.getPayload() != null ? entry.getPayload() : "",
-            entry.getFileName() != null ? entry.getFileName() : "");
+                entry.getPayload() != null ? entry.getPayload() : "",
+                entry.getFileName() != null ? entry.getFileName() : "");
     }
 
     /**
