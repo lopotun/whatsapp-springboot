@@ -1,5 +1,6 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.repository;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -71,4 +72,16 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
          */
         @Query("SELECT COALESCE(SUM(a.fileSize), 0) FROM Attachment a WHERE a.status = 1")
         Long getTotalFileSizeForUser(@Param("userId") Long userId);
+
+        /**
+         * Find attachment hashes that belong to a specific user's chat entries This ensures user
+         * isolation by only returning attachments referenced in user's chats
+         */
+        @Query("SELECT DISTINCT ce.attachment.hash FROM ChatEntryEntity ce WHERE ce.userId = :userId AND ce.attachment IS NOT NULL")
+        List<String> findAttachmentHashesByUserId(@Param("userId") Long userId);
+
+        /**
+         * Find attachments by a list of hashes
+         */
+        List<Attachment> findByHashIn(List<String> hashes);
 }

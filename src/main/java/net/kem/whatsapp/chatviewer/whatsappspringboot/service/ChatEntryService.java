@@ -61,14 +61,40 @@ public class ChatEntryService {
      */
     public List<ChatEntryEntity> saveChatEntries(List<ChatEntry> chatEntries, Long userId,
             String chatId) {
+        if (CollectionUtils.isEmpty(chatEntries)) {
+            log.warn("No chat entries provided for batch save");
+            return List.of();
+        }
+
         List<ChatEntryEntity> entities = chatEntries.stream()
                 .map(chatEntry -> ChatEntryEntity.fromChatEntry(chatEntry, userId, chatId))
                 .collect(Collectors.toList());
 
-        List<ChatEntryEntity> saved = chatEntryRepository.saveAll(entities);
-        log.info("Saved {} chat entries in batch for user: {} and chat: {}", saved.size(), userId,
-                chatId);
-        return saved;
+        try {
+            List<ChatEntryEntity> saved = chatEntryRepository.saveAll(entities);
+            log.info("Saved {} chat entries in batch for user: {} and chat: {}", saved.size(),
+                    userId, chatId);
+            return saved;
+        } catch (Exception e) {
+            // Handle constraint violations gracefully
+            if (e.getMessage() != null
+                    && e.getMessage().contains("duplicate key value violates unique constraint")) {
+                log.warn(
+                        "Duplicate entries detected during batch save, attempting individual saves for user: {} and chat: {}",
+                        userId, chatId);
+
+                // Cannot fall back to individual saves within the same transaction
+                // The transaction is already marked for rollback
+                log.error("Cannot recover from batch save failure within the same transaction. "
+                        + "Transaction will be rolled back. Consider implementing duplicate checking before save.");
+
+                // Re-throw the original exception to trigger rollback
+                throw e;
+            } else {
+                // Re-throw non-constraint violation errors
+                throw e;
+            }
+        }
     }
 
     /**
@@ -89,10 +115,10 @@ public class ChatEntryService {
      * Check if a chat entry already exists based on unique constraint fields
      */
     public boolean existsByUniqueFields(Long userId, String chatId, LocalDateTime localDateTime,
-            String author, String payload, String fileName) {
+            String author, String fileName) {
         try {
             return chatEntryRepository.existsByUniqueFields(userId, chatId, localDateTime, author,
-                    payload, fileName);
+                    fileName);
         } catch (Exception e) {
             log.warn("Error checking for existing entry: user={}, chat={}, time={}, author={} - {}",
                     userId, chatId, localDateTime, author, e.getMessage());

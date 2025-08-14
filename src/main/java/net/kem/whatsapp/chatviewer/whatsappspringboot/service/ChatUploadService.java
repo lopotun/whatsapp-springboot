@@ -1,5 +1,6 @@
 package net.kem.whatsapp.chatviewer.whatsappspringboot.service;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
@@ -21,6 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -30,8 +33,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntry;
 import net.kem.whatsapp.chatviewer.whatsappspringboot.model.ChatEntryEntity;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +59,12 @@ public class ChatUploadService {
     private final ChatService chatService;
     private final FileNamingService fileNamingService;
     private final AttachmentService attachmentService;
+
+    // Progress tracking for async uploads
+    private final ConcurrentHashMap<String, SseEmitter> progressEmitters =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, UploadProgress> uploadProgress =
+            new ConcurrentHashMap<>();
 
     /**
      * Generate a unique chat ID based on the original filename and user ID
@@ -165,9 +176,128 @@ public class ChatUploadService {
                     userId, savedEntries.size(), filenameToHashMap.size());
             return resultBuilder.build();
         } catch (Exception e) {
-            String errorMsg = "Failed to process text file: " + e.getMessage();
-            log.error("Text file upload failed for user: {} - {}", userId, errorMsg, e);
+            // Create detailed error information
+            UploadError error = createUploadError(e, "Text file processing");
+            String errorMsg = error.getUserMessage();
+
+            log.error(
+                    "Text file upload failed for user: {} - Error Code: {}, Message: {}, Technical: {}",
+                    userId, error.getErrorCode(), errorMsg, error.getTechnicalDetails(), e);
+
             return resultBuilder.errorMessage(errorMsg).build();
+        }
+    }
+
+    /**
+     * Upload and process a ZIP file from file path (for async processing)
+     */
+    public UploadResult uploadZipFileFromPath(Path filePath, String fileName, Long userId) {
+        log.info("Starting ZIP file processing from path for user: {} with file: {}", userId,
+                fileName);
+
+        UploadResult.UploadResultBuilder resultBuilder =
+                UploadResult.builder().originalFileName(fileName).fileType("zip").success(false);
+
+        try {
+            // Validate file size
+            long fileSize = Files.size(filePath);
+            if (fileSize > MAX_FILE_SIZE) {
+                String errorMsg =
+                        "File size exceeds maximum allowed size of " + MAX_FILE_SIZE + " bytes";
+                log.warn("File size validation failed for user: {} - {}", userId, errorMsg);
+                return resultBuilder.errorMessage(errorMsg).build();
+            }
+
+            // Validate zip file name
+            if (!StringUtils.hasText(fileName)) {
+                String errorMsg = "No file name was supplied";
+                log.warn("File name validation failed for user: {} - {}", userId, errorMsg);
+                return resultBuilder.errorMessage(errorMsg).build();
+            }
+
+            // Generate unique chat ID
+            String chatId = generateChatId(fileName, userId);
+            resultBuilder.chatId(chatId);
+
+            Set<ChatEntry> chatEntries = new LinkedHashSet<>(512);
+            Map<String, String> filenameToChecksum = new HashMap<>();
+            List<String> extractedFiles = new ArrayList<>();
+
+            try (ZipInputStream zis = new ZipInputStream(
+                    new BufferedInputStream(Files.newInputStream(filePath), 80 * 1024))) {
+                ZipEntry entry;
+                int entryCount = 0;
+
+                while ((entry = zis.getNextEntry()) != null && entryCount < MAX_ENTRIES_PER_ZIP) {
+                    String entryFileName = entry.getName();
+                    extractedFiles.add(entryFileName);
+
+                    try {
+                        if (isChatTextFile(entryFileName)) {
+                            // Process text file (chat data)
+                            processChatTextStream(zis, chatEntries);
+                            entryCount++;
+                        } else {
+                            // Process multimedia file
+                            String contentHash = processMultimediaFile(zis, entryFileName, userId);
+                            if (contentHash != null) {
+                                filenameToChecksum.put(entryFileName, contentHash);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Error processing ZIP entry: {} - {}", entryFileName,
+                                e.getMessage());
+                        // Continue processing other entries even if one fails
+                    } finally {
+                        // Ensure the current entry is closed and ready for the next one
+                        try {
+                            zis.closeEntry();
+                        } catch (IOException e) {
+                            log.warn("Error closing ZIP entry: {} - {}", entryFileName,
+                                    e.getMessage());
+                        }
+                    }
+                }
+            }
+            // Remove any duplicate entries that might have been parsed
+            log.info("Processed ZIP file for user: {} - {} chat entries, removing duplicates...",
+                    userId, chatEntries.size());
+            List<ChatEntry> deduplicatedEntries = deduplicateEntries(new ArrayList<>(chatEntries));
+            log.info("After deduplication: {} unique entries", deduplicatedEntries.size());
+
+            log.info("Processed ZIP file for user: {} - {} chat entries, {} attachments", userId,
+                    deduplicatedEntries.size(), filenameToChecksum.size());
+
+            // Save to database
+            log.info("Starting database save for user: {} and chat: {}", userId, chatId);
+            List<ChatEntryEntity> savedEntries = performIncrementalUpdate(
+                    new LinkedHashSet<>(deduplicatedEntries), userId, chatId, filenameToChecksum);
+
+            resultBuilder.totalEntries(savedEntries.size())
+                    .totalAttachments(filenameToChecksum.size()).extractedFiles(extractedFiles)
+                    .success(true);
+            log.info("Successfully uploaded ZIP file for user: {} - {} entries, {} attachments",
+                    userId, savedEntries.size(), filenameToChecksum.size());
+
+            return resultBuilder.build();
+        } catch (Exception e) {
+            // Create detailed error information
+            UploadError error = createUploadError(e, "ZIP file processing");
+            String errorMsg = error.getUserMessage();
+
+            log.error(
+                    "ZIP file upload failed for user: {} - Error Code: {}, Message: {}, Technical: {}",
+                    userId, error.getErrorCode(), errorMsg, error.getTechnicalDetails(), e);
+
+            return resultBuilder.errorMessage(errorMsg).build();
+        } finally {
+            // Clean up temporary file
+            try {
+                Files.deleteIfExists(filePath);
+                log.info("Temporary file cleaned up: {}", filePath);
+            } catch (IOException e) {
+                log.warn("Failed to clean up temporary file: {} - {}", filePath, e.getMessage());
+            }
         }
     }
 
@@ -206,7 +336,8 @@ public class ChatUploadService {
             Map<String, String> filenameToChecksum = new HashMap<>();
             List<String> extractedFiles = new ArrayList<>();
 
-            try (ZipInputStream zis = new ZipInputStream(file.getInputStream())) {
+            try (ZipInputStream zis =
+                    new ZipInputStream(new BufferedInputStream(file.getInputStream(), 80 * 1024))) {
                 ZipEntry entry;
                 int entryCount = 0;
 
@@ -249,6 +380,7 @@ public class ChatUploadService {
                     deduplicatedEntries.size(), filenameToChecksum.size());
 
             // Save to database
+            log.info("Starting database save for user: {} and chat: {}", userId, chatId);
             List<ChatEntryEntity> savedEntries = performIncrementalUpdate(
                     new LinkedHashSet<>(deduplicatedEntries), userId, chatId, filenameToChecksum);
 
@@ -260,8 +392,14 @@ public class ChatUploadService {
 
             return resultBuilder.build();
         } catch (Exception e) {
-            String errorMsg = "Failed to process ZIP file: " + e.getMessage();
-            log.error("ZIP file upload failed for user: {} - {}", userId, errorMsg, e);
+            // Create detailed error information
+            UploadError error = createUploadError(e, "ZIP file processing");
+            String errorMsg = error.getUserMessage();
+
+            log.error(
+                    "ZIP file upload failed for user: {} - Error Code: {}, Message: {}, Technical: {}",
+                    userId, error.getErrorCode(), errorMsg, error.getTechnicalDetails(), e);
+
             return resultBuilder.errorMessage(errorMsg).build();
         }
     }
@@ -514,7 +652,14 @@ public class ChatUploadService {
                     filenameToHashMap);
         } else {
             log.info("New chat for user: {} and chat: {}, performing bulk insert", userId, chatId);
-            return performBulkInsertForNewChat(newEntries, userId, chatId, filenameToHashMap);
+            try {
+                return performBulkInsertForNewChat(newEntries, userId, chatId, filenameToHashMap);
+            } catch (Exception e) {
+                log.error(
+                        "Bulk insert failed in performIncrementalUpdate for user: {} and chat: {} - {}",
+                        userId, chatId, e.getMessage());
+                throw e; // Re-throw to ensure error is propagated
+            }
         }
     }
 
@@ -538,8 +683,7 @@ public class ChatUploadService {
 
                 // Check if this entry already exists in the database
                 boolean exists = chatEntryService.existsByUniqueFields(userId, chatId,
-                        entry.getLocalDateTime(), entry.getAuthor(), entry.getPayload(),
-                        entry.getFileName());
+                        entry.getLocalDateTime(), entry.getAuthor(), entry.getFileName());
 
                 if (exists) {
                     log.debug("Skipping duplicate entry: user={}, chat={}, time={}, author={}",
@@ -603,30 +747,29 @@ public class ChatUploadService {
     }
 
     /**
-     * Perform bulk insert for new chat - no need to check for duplicates or remove obsolete entries
+     * Perform bulk insert for new chat - now with duplicate checking to prevent constraint
+     * violations
      */
     private List<ChatEntryEntity> performBulkInsertForNewChat(Set<ChatEntry> newEntries,
             Long userId, String chatId, Map<String, String> filenameToHashMap) {
         List<ChatEntry> entriesToSave = new ArrayList<>();
+        int skippedDuplicates = 0;
 
-        // Prepare all entries for bulk insert
+        // Prepare all entries for bulk insert with duplicate checking
         for (ChatEntry entry : newEntries) {
-            // Create new entity
-            ChatEntryEntity entity = ChatEntryEntity.fromChatEntry(entry, userId, chatId);
+            // Check if this entry already exists in the database
+            boolean exists = chatEntryService.existsByUniqueFields(userId, chatId,
+                    entry.getLocalDateTime(), entry.getAuthor(), entry.getFileName());
 
-            // Link attachment if this entry has a filename that matches our hash map
-            if (entry.getFileName() != null && filenameToHashMap.containsKey(entry.getFileName())) {
-                String hash = filenameToHashMap.get(entry.getFileName());
-
-                // Find the attachment by hash
-                attachmentService.findByHash(hash).ifPresent(attachment -> {
-                    entity.setAttachment(attachment);
-                    entity.setPath(attachmentService.generateFilePath(hash));
-                });
+            if (exists) {
+                log.debug(
+                        "Skipping duplicate entry during bulk insert: user={}, chat={}, time={}, author={}",
+                        userId, chatId, entry.getLocalDateTime(), entry.getAuthor());
+                skippedDuplicates++;
+                continue;
             }
 
-            // Convert back to ChatEntry for bulk save (since saveChatEntries expects ChatEntry
-            // objects)
+            // Convert to ChatEntry for bulk save (since saveChatEntries expects ChatEntry objects)
             ChatEntry entryToSave = ChatEntry.builder().localDateTime(entry.getLocalDateTime())
                     .author(entry.getAuthor()).payload(entry.getPayload())
                     .fileName(entry.getFileName()).type(entry.getType()).build();
@@ -635,11 +778,18 @@ public class ChatUploadService {
         }
 
         // Perform bulk insert
-        List<ChatEntryEntity> savedEntries =
-                chatEntryService.saveChatEntries(entriesToSave, userId, chatId);
+        List<ChatEntryEntity> savedEntries;
+        try {
+            savedEntries = chatEntryService.saveChatEntries(entriesToSave, userId, chatId);
+        } catch (Exception e) {
+            log.error("Bulk insert failed for user: {} and chat: {} - {}", userId, chatId,
+                    e.getMessage());
+            throw e; // Re-throw to ensure error is propagated
+        }
 
-        log.info("Bulk insert completed for new chat - user: {}, chat: {}, saved: {} entries",
-                userId, chatId, savedEntries.size());
+        log.info(
+                "Bulk insert completed for new chat - user: {}, chat: {}, saved: {} entries, skipped: {} duplicates",
+                userId, chatId, savedEntries.size(), skippedDuplicates);
 
         return savedEntries;
     }
@@ -887,6 +1037,412 @@ public class ChatUploadService {
             public UploadResult build() {
                 return result;
             }
+        }
+    }
+
+    /**
+     * Progress tracking for async uploads
+     */
+    @Getter
+    public static class UploadProgress {
+        private final String uploadId;
+        private final Long userId;
+        private final MultipartFile file;
+        private final Path tempFile;
+        private int progress;
+        private String message;
+        private UploadResult result;
+        private String error;
+
+        public UploadProgress(String uploadId, Long userId, MultipartFile file, Path tempFile) {
+            this.uploadId = uploadId;
+            this.userId = userId;
+            this.file = file;
+            this.tempFile = tempFile;
+            this.progress = 0;
+            this.message = "Starting upload...";
+        }
+
+        public void updateProgress(int progress, String message) {
+            this.progress = progress;
+            this.message = message;
+        }
+
+        public void setResult(UploadResult result) {
+            this.result = result;
+        }
+
+        public void setError(String error) {
+            this.error = error;
+        }
+    }
+
+    /**
+     * Start async ZIP processing
+     */
+    public String startAsyncZipProcessing(MultipartFile file, Long userId) {
+        String uploadId = UUID.randomUUID().toString();
+        log.info("Starting async ZIP processing for user: {} with upload ID: {}", userId, uploadId);
+
+        // Create a temporary file in our application's temp directory
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile("upload_" + uploadId + "_", ".zip");
+            file.transferTo(tempFile.toFile());
+            log.info("File saved to temporary location for upload: {} - Path: {}", uploadId,
+                    tempFile);
+        } catch (IOException e) {
+            log.error("Failed to save file to temporary location for upload: {} - {}", uploadId,
+                    e.getMessage());
+            throw new RuntimeException("Failed to save uploaded file", e);
+        }
+
+        UploadProgress progress = new UploadProgress(uploadId, userId, file, tempFile);
+        uploadProgress.put(uploadId, progress);
+
+        // Start processing in background thread
+        new Thread(() -> {
+            try {
+                processZipFileAsync(uploadId, progress, userId);
+            } catch (Exception e) {
+                log.error("Async ZIP processing failed for upload: {}", uploadId, e);
+                progress.setError(e.getMessage());
+
+                // Send detailed error information to client
+                UploadError error = createUploadError(e, "ZIP processing failed");
+                sendProgressUpdate(uploadId, "error", error);
+            }
+        }).start();
+
+        return uploadId;
+    }
+
+    /**
+     * Wait for client to establish SSE connection
+     */
+    private void waitForClientConnection(String uploadId, int timeoutMs) {
+        log.info("Starting connection wait for upload: {} - timeout: {}ms", uploadId, timeoutMs);
+
+        // Wait for the SSE emitter to be created and the client to connect
+        long startTime = System.currentTimeMillis();
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            SseEmitter emitter = progressEmitters.get(uploadId);
+            if (emitter != null) {
+                log.info("SSE emitter found for upload: {}, waiting for client connection...",
+                        uploadId);
+
+                // Wait for client to actually connect and receive the ready message
+                // Since SSE is one-way, we wait a reasonable time for the client to establish
+                // connection
+                try {
+                    Thread.sleep(2000); // Wait 2 seconds for client to establish connection
+                    log.info("Client SSE connection wait completed for upload: {}", uploadId);
+                    return;
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Connection wait interrupted for upload: {}", uploadId);
+                    return;
+                }
+            }
+            try {
+                Thread.sleep(200); // Check every 200ms
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Connection wait interrupted for upload: {}", uploadId);
+                return;
+            }
+        }
+        log.warn("Timeout waiting for SSE emitter for upload: {}", uploadId);
+    }
+
+    /**
+     * Get upload progress status (fallback for when SSE fails)
+     */
+    public UploadProgress getUploadProgress(String uploadId) {
+        return uploadProgress.get(uploadId);
+    }
+
+    /**
+     * Create progress emitter for monitoring
+     */
+    public SseEmitter createProgressEmitter(String uploadId) {
+        log.info("Creating progress emitter for upload: {}", uploadId);
+        SseEmitter emitter = new SseEmitter(300000L); // 5 minutes timeout
+
+        progressEmitters.put(uploadId, emitter);
+        log.info("SSE emitter stored for upload: {} - Total emitters: {}", uploadId,
+                progressEmitters.size());
+
+        emitter.onCompletion(() -> {
+            log.info("SSE emitter completed for upload: {}", uploadId);
+            progressEmitters.remove(uploadId);
+        });
+        emitter.onTimeout(() -> {
+            log.info("SSE emitter timed out for upload: {}", uploadId);
+            progressEmitters.remove(uploadId);
+        });
+        emitter.onError((ex) -> {
+            log.error("SSE emitter error for upload: {} - {}", uploadId, ex.getMessage());
+            progressEmitters.remove(uploadId);
+        });
+
+        // Send a connection ready event to indicate the server is ready
+        try {
+            Map<String, Object> readyMessage = new HashMap<>();
+            readyMessage.put("type", "ready");
+            readyMessage.put("message", "Server ready to send events");
+            emitter.send(readyMessage);
+            log.info("Connection ready message sent for upload: {}", uploadId);
+
+            // Wait a bit for the client to receive and process the ready message
+            try {
+                Thread.sleep(500); // Wait 500ms for client to process ready message
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Connection ready wait interrupted for upload: {}", uploadId);
+            }
+        } catch (Exception e) {
+            log.error("Failed to send connection ready message for upload: {} - {}", uploadId,
+                    e.getMessage());
+        }
+
+        return emitter;
+    }
+
+    /**
+     * Process ZIP file asynchronously with progress updates
+     */
+    private void processZipFileAsync(String uploadId, UploadProgress progress, Long userId) {
+        if (progress == null)
+            return;
+
+        try {
+            // Wait for client to establish SSE connection before sending any events
+            log.info("Waiting for client SSE connection for upload: {}", uploadId);
+            waitForClientConnection(uploadId, 10000); // Wait up to 10 seconds
+
+            // Update progress: Starting
+            progress.updateProgress(0, "Starting ZIP processing...");
+            sendProgressUpdate(uploadId, "progress", 0, "Starting ZIP processing...");
+
+            // Update progress: Reading ZIP
+            progress.updateProgress(20, "Reading ZIP file...");
+            sendProgressUpdate(uploadId, "progress", 20, "Reading ZIP file...");
+
+            // Process the ZIP file using the stored temporary file
+            UploadResult result = uploadZipFileFromPath(progress.getTempFile(),
+                    progress.getFile().getOriginalFilename(), userId);
+            log.info("ZIP processing result for upload: {} - Success: {}, Entries: {}, Error: {}",
+                    uploadId, result.isSuccess(), result.getTotalEntries(),
+                    result.getErrorMessage());
+
+            // Check if the result indicates an error
+            if (!result.isSuccess()) {
+                log.warn("ZIP processing returned unsuccessful result for upload: {} - Error: {}",
+                        uploadId, result.getErrorMessage());
+
+                // Debug: Check if SSE emitter exists
+                log.info("SSE emitter check for upload: {} - Emitter exists: {}", uploadId,
+                        progressEmitters.containsKey(uploadId));
+
+                // Create error object from the result
+                UploadError error = UploadError.builder().errorCode("UPLOAD_FAILED")
+                        .userMessage(result.getErrorMessage() != null ? result.getErrorMessage()
+                                : "Upload failed")
+                        .technicalDetails("Server returned unsuccessful result")
+                        .context("ZIP file processing").timestamp(LocalDateTime.now()).build();
+
+                log.info(
+                        "Attempting to send error notification for unsuccessful result - upload: {}",
+                        uploadId);
+
+                // Check if SSE emitter is still available before sending error
+                SseEmitter emitter = progressEmitters.get(uploadId);
+                if (emitter != null) {
+                    sendProgressUpdate(uploadId, "error", error);
+                    log.info("Error notification sent for unsuccessful result - upload: {}",
+                            uploadId);
+                } else {
+                    log.warn("SSE emitter not available for error notification - upload: {}",
+                            uploadId);
+                    // Store error in progress for potential fallback retrieval
+                    progress.setError(error.getUserMessage());
+                }
+                return;
+            }
+
+            // Update progress: Complete
+            progress.updateProgress(100, "Processing complete!");
+            progress.setResult(result);
+            sendProgressUpdate(uploadId, "complete", result);
+
+        } catch (Exception e) {
+            log.error("ZIP processing failed for upload: {} - {}", uploadId, e.getMessage(), e);
+            progress.setError(e.getMessage());
+
+            // Send detailed error information to client
+            UploadError error = createUploadError(e, "ZIP processing failed");
+            log.info("Created error object for upload: {} - Code: {}, Message: {}", uploadId,
+                    error.getErrorCode(), error.getUserMessage());
+
+            try {
+                log.info("Attempting to send error notification to client for upload: {}",
+                        uploadId);
+                sendProgressUpdate(uploadId, "error", error);
+                log.info("Error notification sent to client for upload: {}", uploadId);
+
+                // Wait a bit longer to ensure the error event is fully processed
+                try {
+                    Thread.sleep(500); // 500ms delay to ensure error delivery
+                    log.info("Error notification delay completed for upload: {}", uploadId);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Error notification delay interrupted for upload: {}", uploadId);
+                }
+            } catch (Exception notificationException) {
+                log.error("Failed to send error notification to client for upload: {} - {}",
+                        uploadId, notificationException.getMessage(), notificationException);
+            }
+        }
+    }
+
+    /**
+     * Create a structured upload error from an exception or error
+     */
+    private UploadError createUploadError(Throwable e, String context) {
+        String errorCode = "UPLOAD_ERROR";
+        String userMessage = "An error occurred during upload processing";
+        String technicalDetails = e.getMessage();
+
+        // Determine specific error type and provide user-friendly messages
+        if (e instanceof org.springframework.dao.DataIntegrityViolationException) {
+            errorCode = "DATABASE_CONSTRAINT_ERROR";
+            userMessage =
+                    "Upload failed due to data integrity issues. This usually means some entries already exist.";
+            technicalDetails = "Database constraint violation: " + e.getMessage();
+        } else if (e instanceof java.io.IOException) {
+            errorCode = "FILE_IO_ERROR";
+            userMessage =
+                    "Upload failed due to file reading issues. Please check if the file is corrupted.";
+            technicalDetails = "File I/O error: " + e.getMessage();
+        } else if (e instanceof java.util.zip.ZipException) {
+            errorCode = "ZIP_CORRUPTION_ERROR";
+            userMessage = "Upload failed because the ZIP file appears to be corrupted or invalid.";
+            technicalDetails = "ZIP file error: " + e.getMessage();
+        } else if (e instanceof org.springframework.transaction.UnexpectedRollbackException) {
+            errorCode = "TRANSACTION_ERROR";
+            userMessage = "Upload failed due to database transaction issues. Please try again.";
+            technicalDetails = "Transaction rollback: " + e.getMessage();
+        } else if (e instanceof java.lang.OutOfMemoryError
+                || e instanceof java.lang.VirtualMachineError) {
+            errorCode = "MEMORY_ERROR";
+            userMessage =
+                    "Upload failed due to insufficient server memory. Try uploading a smaller file.";
+            technicalDetails = "Memory error: " + e.getMessage();
+        } else if (e instanceof java.lang.IllegalArgumentException) {
+            errorCode = "VALIDATION_ERROR";
+            userMessage =
+                    "Upload failed due to invalid file format or content. Please check your file.";
+            technicalDetails = "Validation error: " + e.getMessage();
+        } else if (e instanceof java.lang.SecurityException) {
+            errorCode = "SECURITY_ERROR";
+            userMessage = "Upload failed due to security restrictions. Please contact support.";
+            technicalDetails = "Security error: " + e.getMessage();
+        } else if (e instanceof java.util.concurrent.TimeoutException) {
+            errorCode = "TIMEOUT_ERROR";
+            userMessage =
+                    "Upload failed due to timeout. The file may be too large or the server is busy.";
+            technicalDetails = "Timeout error: " + e.getMessage();
+        }
+
+        return UploadError.builder().errorCode(errorCode).userMessage(userMessage)
+                .technicalDetails(technicalDetails).context(context).timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * Structured upload error information
+     */
+    @Getter
+    @Builder
+    public static class UploadError {
+        private final String errorCode;
+        private final String userMessage;
+        private final String technicalDetails;
+        private final String context;
+        private final LocalDateTime timestamp;
+    }
+
+    /**
+     * Send progress update to client
+     */
+    private void sendProgressUpdate(String uploadId, String type, Object... data) {
+        log.info("Attempting to send progress update for upload: {}, type: {}", uploadId, type);
+
+        SseEmitter emitter = progressEmitters.get(uploadId);
+        log.info("SSE emitter lookup for upload: {} - Found: {}, Type: {}", uploadId,
+                emitter != null, type);
+
+        if (emitter == null) {
+            log.warn("No SSE emitter found for upload: {}", uploadId);
+            log.warn("Available upload IDs: {}", progressEmitters.keySet());
+            return;
+        }
+
+        try {
+            // Check if the emitter is still active (SseEmitter doesn't have isCompleted method)
+            // We'll just try to send and handle any exceptions
+
+            Map<String, Object> message = new HashMap<>();
+            message.put("type", type);
+
+            if (type.equals("progress")) {
+                message.put("progress", data[0]);
+                message.put("message", data[1]);
+            } else if (type.equals("complete")) {
+                message.put("result", data[0]);
+            } else if (type.equals("error")) {
+                // Handle structured error information
+                if (data[0] instanceof UploadError) {
+                    UploadError error = (UploadError) data[0];
+                    message.put("errorCode", error.getErrorCode());
+                    message.put("userMessage", error.getUserMessage());
+                    message.put("technicalDetails", error.getTechnicalDetails());
+                    message.put("context", error.getContext());
+                    message.put("timestamp", error.getTimestamp());
+                } else {
+                    // Fallback for simple string errors
+                    message.put("message", data[0]);
+                }
+            }
+
+            emitter.send(message);
+            log.info("Successfully sent {} event for upload: {}", type, uploadId);
+
+            if (type.equals("complete")) {
+                // For complete events, close immediately
+                emitter.complete();
+                progressEmitters.remove(uploadId);
+                uploadProgress.remove(uploadId);
+                log.debug("SSE emitter completed for upload: {}", uploadId);
+            } else if (type.equals("error")) {
+                // For error events, add a small delay before closing to ensure delivery
+                try {
+                    Thread.sleep(200); // 200ms delay for error events
+                    emitter.complete();
+                    progressEmitters.remove(uploadId);
+                    uploadProgress.remove(uploadId);
+                    log.debug("SSE emitter completed after error for upload: {}", uploadId);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    emitter.complete();
+                    progressEmitters.remove(uploadId);
+                    uploadProgress.remove(uploadId);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to send progress update for upload: {}", uploadId, e);
+            progressEmitters.remove(uploadId);
         }
     }
 }

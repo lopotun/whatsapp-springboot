@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -33,10 +34,18 @@ public class AttachmentController {
     }
 
     /**
-     * Get attachment by hash
+     * Get attachment by hash (only if user owns it)
      */
     @GetMapping("/hash/{hash}")
     public ResponseEntity<Attachment> getAttachmentByHash(@PathVariable String hash) {
+        Long userId = getCurrentUserId();
+
+        // Check if user owns this attachment
+        if (!attachmentService.userOwnsAttachment(hash, userId)) {
+            return ResponseEntity.status(403).build(); // Forbidden - user doesn't own this
+                                                       // attachment
+        }
+
         Optional<Attachment> attachment = attachmentService.findByHash(hash);
         return attachment.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
@@ -51,20 +60,23 @@ public class AttachmentController {
     }
 
     /**
-     * Get all attachments
+     * Get all attachments for the current authenticated user
      */
     @GetMapping
     public ResponseEntity<List<Attachment>> getAllAttachments() {
-        List<Attachment> attachments = attachmentService.findAllAttachments();
+        Long userId = getCurrentUserId();
+        List<Attachment> attachments = attachmentService.findAllAttachmentsByUserId(userId);
         return ResponseEntity.ok(attachments);
     }
 
     /**
-     * Get all attachments with specific status
+     * Get all attachments with specific status for the current authenticated user
      */
     @GetMapping("/status/{status}")
     public ResponseEntity<List<Attachment>> getAttachmentsByStatus(@PathVariable Byte status) {
-        List<Attachment> attachments = attachmentService.findAttachmentsByStatus(status);
+        Long userId = getCurrentUserId();
+        List<Attachment> attachments =
+                attachmentService.findAttachmentsByStatusAndUserId(status, userId);
         return ResponseEntity.ok(attachments);
     }
 
@@ -165,5 +177,26 @@ public class AttachmentController {
             log.error("Attachment not found: {}", hash, e);
             return ResponseEntity.notFound().build();
         }
+    }
+
+    /**
+     * Get current user ID from authentication
+     */
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String principalName = authentication.getName();
+
+        // Try to find user by username first (traditional auth)
+        Optional<User> userOpt = userService.findByUsername(principalName);
+
+        // If not found, try to find by OAuth2 ID (OAuth2 auth)
+        if (userOpt.isEmpty() && authentication instanceof OAuth2AuthenticationToken) {
+            OAuth2AuthenticationToken oauthToken = (OAuth2AuthenticationToken) authentication;
+            String provider = oauthToken.getAuthorizedClientRegistrationId();
+            String oauthId = oauthToken.getName();
+            userOpt = userService.findByOauthProviderAndOauthId(provider, oauthId);
+        }
+
+        return userOpt.map(User::getId).orElseThrow(() -> new RuntimeException("User not found"));
     }
 }

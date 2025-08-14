@@ -76,9 +76,31 @@ public class AttachmentService {
     }
 
     /**
-     * Find all attachments
+     * Find all attachments for a specific user (based on chat entries) This method ensures user
+     * isolation by only returning attachments that are referenced in the user's own chat entries.
      */
+    public List<Attachment> findAllAttachmentsByUserId(Long userId) {
+        // Get all attachment hashes that belong to this user's chat entries
+        List<String> userAttachmentHashes =
+                attachmentRepository.findAttachmentHashesByUserId(userId);
+
+        if (userAttachmentHashes.isEmpty()) {
+            return List.of(); // User has no attachments
+        }
+
+        // Return only the attachments that belong to this user
+        return attachmentRepository.findByHashIn(userAttachmentHashes);
+    }
+
+    /**
+     * Find all attachments (DEPRECATED - use findAllAttachmentsByUserId instead)
+     *
+     * @deprecated This method returns all attachments without user isolation. Use
+     *             findAllAttachmentsByUserId for secure access.
+     */
+    @Deprecated
     public List<Attachment> findAllAttachments() {
+        log.warn("findAllAttachments() called without user isolation - this is a security risk!");
         return attachmentRepository.findAll();
     }
 
@@ -87,6 +109,35 @@ public class AttachmentService {
      */
     public List<Attachment> findAttachmentsByStatus(Byte status) {
         return attachmentRepository.findByStatus(status);
+    }
+
+    /**
+     * Find attachments by status for a specific user
+     */
+    public List<Attachment> findAttachmentsByStatusAndUserId(Byte status, Long userId) {
+        // Get user's attachment hashes first
+        List<String> userAttachmentHashes =
+                attachmentRepository.findAttachmentHashesByUserId(userId);
+
+        if (userAttachmentHashes.isEmpty()) {
+            return List.of(); // User has no attachments
+        }
+
+        // Get all attachments with the specified status
+        List<Attachment> allAttachmentsWithStatus = attachmentRepository.findByStatus(status);
+
+        // Filter to only include user's attachments
+        return allAttachmentsWithStatus.stream()
+                .filter(att -> userAttachmentHashes.contains(att.getHash())).toList();
+    }
+
+    /**
+     * Check if a user owns a specific attachment
+     */
+    public boolean userOwnsAttachment(String hash, Long userId) {
+        List<String> userAttachmentHashes =
+                attachmentRepository.findAttachmentHashesByUserId(userId);
+        return userAttachmentHashes.contains(hash);
     }
 
     /**

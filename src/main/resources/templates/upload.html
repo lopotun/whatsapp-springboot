@@ -144,10 +144,10 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">
-                            <i class="bi bi-house me-1"></i>Home
+                        <a class="nav-link" href="/dashboard">
+                            <i class="bi bi-house me-1"></i>Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
@@ -169,6 +169,26 @@
                         <a class="nav-link" href="/stats">
                             <i class="bi bi-graph-up me-1"></i>Statistics
                         </a>
+                    </li>
+                </ul>
+
+                <!-- User Profile Dropdown -->
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"
+                           data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i>
+                            <span th:text="${user.firstName + ' ' + user.lastName}">User</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/profile">
+                                <i class="bi bi-person me-2"></i>Profile
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout">
+                                <i class="bi bi-box-arrow-right me-2"></i>Logout
+                            </a></li>
+                        </ul>
                     </li>
                 </ul>
             </div>
@@ -246,9 +266,15 @@
                                     </h5>
                                 </div>
                                 <div class="card-body">
-                                    <div class="progress mb-3">
-                                        <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                             role="progressbar" style="width: 0%" id="progressBar">0%</div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span id="progressStage" class="badge bg-primary">Upload Stage</span>
+                                            <span id="progressPercent" class="text-muted">0%</span>
+                                        </div>
+                                        <div class="progress">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                                 role="progressbar" style="width: 0%" id="progressBar">0%</div>
+                                        </div>
                                     </div>
                                     <div id="progressText" class="text-muted">Preparing upload...</div>
                                 </div>
@@ -390,10 +416,18 @@
 
                 xhr.addEventListener('load', function() {
                     if (xhr.status === 200) {
-                        updateProgress(100, 'Processing complete!');
-                        setTimeout(() => {
-                            showResults(xhr.responseText, file.name);
-                        }, 1000);
+                        const response = JSON.parse(xhr.responseText);
+
+                        if (response.uploadId && currentUploadType === 'zip') {
+                            // For ZIP files, start monitoring processing progress
+                            monitorProcessingProgress(response.uploadId, file.name);
+                        } else {
+                            // For text files or if no upload ID, show results immediately
+                            updateProgress(100, 'Processing complete!');
+                            setTimeout(() => {
+                                showResults(xhr.responseText, file.name);
+                            }, 1000);
+                        }
                     } else {
                         Utils.showAlert('Upload failed: ' + xhr.statusText, 'danger');
                         resetUpload();
@@ -409,13 +443,340 @@
                 xhr.send(formData);
             }
 
+            function monitorProcessingProgress(uploadId, fileName) {
+                console.log('Starting progress monitoring for upload:', uploadId);
+                // Reset progress to 0% for processing stage
+                updateProgress(100, 'File uploaded, starting ZIP processing...');
+
+                // Create EventSource with retry logic
+                let eventSource = null;
+                let retryCount = 0;
+                const maxRetries = 3;
+
+                function createEventSource() {
+                    if (eventSource) {
+                        eventSource.close();
+                    }
+
+                    eventSource = new EventSource(`/api/upload/progress/${uploadId}`);
+                    console.log('EventSource created for:', `/api/upload/progress/${uploadId}`, 'Retry:', retryCount);
+
+                    setupEventSourceHandlers();
+                }
+
+                function setupEventSourceHandlers() {
+                    // Add connection status monitoring
+                    let connectionAttempts = 0;
+                    const maxAttempts = 3;
+
+                    function checkConnection() {
+                        if (eventSource.readyState === EventSource.CONNECTING) {
+                            connectionAttempts++;
+                            console.log(`SSE connection attempt ${connectionAttempts}/${maxAttempts} for upload:`, uploadId);
+
+                            if (connectionAttempts >= maxAttempts) {
+                                console.error('SSE connection failed after', maxAttempts, 'attempts for upload:', uploadId);
+                                if (retryCount < maxRetries) {
+                                    retryCount++;
+                                    console.log(`Retrying SSE connection (${retryCount}/${maxRetries}) for upload:`, uploadId);
+                                    setTimeout(createEventSource, 1000);
+                                    return;
+                                } else {
+                                    Utils.showAlert('Failed to establish connection with server after multiple attempts', 'danger');
+                                    return;
+                                }
+                            }
+
+                            setTimeout(checkConnection, 1000);
+                        } else if (eventSource.readyState === EventSource.OPEN) {
+                            console.log('SSE connection established for upload:', uploadId);
+                        }
+                    }
+
+                    // Start connection monitoring
+                    setTimeout(checkConnection, 100);
+
+                    // Log the EventSource state immediately
+                    console.log('EventSource initial state for upload:', uploadId, 'State:', eventSource.readyState);
+                    console.log('EventSource states: CONNECTING=', EventSource.CONNECTING, 'OPEN=', EventSource.OPEN, 'CLOSED=', EventSource.CLOSED);
+
+                    // Add timeout handling
+                    const connectionTimeout = setTimeout(() => {
+                        if (eventSource.readyState === EventSource.CONNECTING) {
+                            console.error('SSE connection timeout for upload:', uploadId);
+                            if (retryCount < maxRetries) {
+                                retryCount++;
+                                console.log(`Retrying SSE connection after timeout (${retryCount}/${maxRetries}) for upload:`, uploadId);
+                                setTimeout(createEventSource, 1000);
+                            } else {
+                                Utils.showAlert('Connection to server timed out after multiple attempts', 'warning');
+                                eventSource.close();
+                            }
+                        }
+                    }, 10000); // 10 second timeout
+
+                    eventSource.onmessage = function(event) {
+                        console.log('Received SSE message:', event.data);
+                        const data = JSON.parse(event.data);
+                        console.log('Parsed SSE data:', data);
+
+                        if (data.type === 'ready') {
+                            console.log('Received ready message:', data.message);
+                            // Send a ready acknowledgment back to the server
+                            console.log('SSE connection established and ready for upload:', uploadId);
+                            // Send acknowledgment to confirm connection is ready
+                            try {
+                                const ackMessage = { type: 'connection_ack', uploadId: uploadId };
+                                // We can't send messages back via SSE, but we can log that we're ready
+                                console.log('Client ready acknowledgment sent for upload:', uploadId);
+                            } catch (e) {
+                                console.log('Could not send acknowledgment:', e);
+                            }
+                        } else if (data.type === 'connection_test') {
+                            console.log('Received connection test message:', data.message);
+                            // Connection test successful - server knows we're connected
+                            console.log('Connection test successful for upload:', uploadId);
+                        } else if (data.type === 'progress') {
+                            updateProgress(100 + data.progress, data.message);
+                        } else if (data.type === 'complete') {
+                            console.log('Received complete message:', data);
+                            clearTimeout(connectionTimeout);
+                            updateProgress(200, 'Processing complete!');
+                            eventSource.close();
+
+                            setTimeout(() => {
+                                showResults(JSON.stringify(data.result), fileName);
+                            }, 1000);
+                        } else if (data.type === 'error') {
+                            console.log('Received error message:', data);
+                            clearTimeout(connectionTimeout);
+
+                            // Handle structured error information
+                            if (data.errorCode && data.userMessage) {
+                                // Show detailed error information
+                                showDetailedError(data);
+                            } else {
+                                // Fallback for simple error messages
+                                Utils.showAlert('Processing failed: ' + (data.message || 'Unknown error'), 'danger');
+                            }
+                            eventSource.close();
+                            resetUpload();
+                        }
+                    };
+
+                    eventSource.onerror = function(event) {
+                        console.log('SSE connection error:', event);
+                        if (retryCount < maxRetries) {
+                            retryCount++;
+                            console.log(`Retrying SSE connection after error (${retryCount}/${maxRetries}) for upload:`, uploadId);
+                            setTimeout(createEventSource, 1000);
+                        } else {
+                            console.log('SSE failed after all retries, switching to polling fallback for upload:', uploadId);
+                            eventSource.close();
+                            startPollingFallback(uploadId, fileName);
+                        }
+                    };
+
+                    eventSource.onopen = function(event) {
+                        console.log('SSE connection opened for upload:', uploadId);
+                        clearTimeout(connectionTimeout);
+                    };
+                }
+
+
+            }
+
             function updateProgress(percent, text) {
                 const progressBar = document.getElementById('progressBar');
                 const progressText = document.getElementById('progressText');
+                const progressStage = document.getElementById('progressStage');
+                const progressPercent = document.getElementById('progressPercent');
 
-                progressBar.style.width = percent + '%';
-                progressBar.textContent = Math.round(percent) + '%';
+                // Handle extended progress range (0-200%)
+                let displayPercent = percent;
+                let displayText = text;
+                let stageText = 'Upload Stage';
+
+                if (percent > 100) {
+                    // Processing stage: show 0-100% for processing
+                    displayPercent = percent - 100;
+                    displayText = text;
+                    stageText = 'Processing Stage';
+                }
+
+                // Ensure progress bar doesn't exceed 100%
+                displayPercent = Math.min(displayPercent, 100);
+
+                // Update progress bar
+                progressBar.style.width = displayPercent + '%';
+                progressBar.textContent = Math.round(displayPercent) + '%';
+
+                // Update text and stage
                 progressText.textContent = text;
+                progressStage.textContent = stageText;
+                progressPercent.textContent = Math.round(displayPercent) + '%';
+
+                // Debug logging
+                console.log(`Progress: ${percent}% -> ${displayPercent}%, Stage: ${stageText}, Text: "${text}"`);
+            }
+
+            function showDetailedError(errorData) {
+                const resultsSection = document.getElementById('resultsSection');
+                const resultsContent = document.getElementById('resultsContent');
+
+                // Hide progress section
+                document.getElementById('progressSection').style.display = 'none';
+
+                let html = `
+                    <div class="alert alert-danger">
+                        <h6><i class="bi bi-exclamation-triangle me-2"></i>Upload Failed</h6>
+                        <p class="mb-2"><strong>${errorData.userMessage}</strong></p>
+                        <div class="small text-muted">
+                            <strong>Error Code:</strong> ${errorData.errorCode}<br>
+                            <strong>Context:</strong> ${errorData.context || 'Unknown'}<br>
+                            <strong>Time:</strong> ${errorData.timestamp || 'Unknown'}
+                        </div>
+                    </div>
+                `;
+
+                // Show technical details for developers (can be hidden in production)
+                if (errorData.technicalDetails) {
+                    html += `
+                        <div class="mb-3">
+                            <button class="btn btn-sm btn-outline-secondary" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#technicalDetails">
+                                <i class="bi bi-code me-1"></i>Show Technical Details
+                            </button>
+                            <div class="collapse mt-2" id="technicalDetails">
+                                <div class="card card-body bg-light">
+                                    <small class="text-muted">Technical Details:</small><br>
+                                    <code>${errorData.technicalDetails}</code>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Add troubleshooting suggestions based on error code
+                html += getTroubleshootingSuggestions(errorData.errorCode);
+
+                // Add retry button
+                html += `
+                    <div class="mt-3">
+                        <button class="btn btn-primary" onclick="resetUpload()">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Try Again
+                        </button>
+                        <button class="btn btn-outline-secondary ms-2" onclick="showHelp()">
+                            <i class="bi bi-question-circle me-2"></i>Get Help
+                        </button>
+                    </div>
+                `;
+
+                resultsContent.innerHTML = html;
+                resultsSection.style.display = 'block';
+            }
+
+            function getTroubleshootingSuggestions(errorCode) {
+                const suggestions = {
+                    'DATABASE_CONSTRAINT_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>This error usually means some chat entries already exist in the database</li>
+                                <li>Try uploading a different chat file or check if you've uploaded this before</li>
+                                <li>Contact support if you believe this is a new, unique chat</li>
+                            </ul>
+                        </div>
+                    `,
+                    'FILE_IO_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>Check if the file is corrupted or incomplete</li>
+                                <li>Try re-downloading the file from WhatsApp</li>
+                                <li>Ensure the file is a valid ZIP archive</li>
+                            </ul>
+                        </div>
+                    `,
+                    'ZIP_CORRUPTION_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>The ZIP file appears to be corrupted or invalid</li>
+                                <li>Try re-exporting the chat from WhatsApp</li>
+                                <li>Check if the file was interrupted during download</li>
+                            </ul>
+                        </div>
+                    `,
+                    'TRANSACTION_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>This is a server-side database issue</li>
+                                <li>Try uploading again in a few minutes</li>
+                                <li>Contact support if the problem persists</li>
+                            </ul>
+                        </div>
+                    `,
+                    'MEMORY_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>The file is too large for the server to process</li>
+                                <li>Try splitting the chat export into smaller files</li>
+                                <li>Contact support for assistance with large files</li>
+                            </ul>
+                        </div>
+                    `,
+                    'UPLOAD_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>An unexpected error occurred during upload</li>
+                                <li>Try refreshing the page and uploading again</li>
+                                <li>Contact support if the problem persists</li>
+                            </ul>
+                        </div>
+                    `,
+                    'VALIDATION_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>Check if the file is a valid WhatsApp chat export</li>
+                                <li>Ensure the file contains the expected format</li>
+                                <li>Try re-exporting the chat from WhatsApp</li>
+                            </ul>
+                        </div>
+                    `,
+                    'SECURITY_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>This appears to be a server security restriction</li>
+                                <li>Contact support for assistance</li>
+                                <li>Ensure you're uploading from an authorized location</li>
+                            </ul>
+                        </div>
+                    `,
+                    'TIMEOUT_ERROR': `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-lightbulb me-2"></i>Troubleshooting Tips</h6>
+                            <ul class="mb-0">
+                                <li>The upload took too long to complete</li>
+                                <li>Try uploading a smaller file</li>
+                                <li>Check your internet connection</li>
+                                <li>Try again during off-peak hours</li>
+                            </ul>
+                        </div>
+                    `
+                };
+
+                return suggestions[errorCode] || suggestions['UPLOAD_ERROR'];
+            }
+
+            function showHelp() {
+                // Show help modal or redirect to help page
+                alert('Help functionality coming soon. Please contact support for assistance.');
             }
 
             function showResults(responseText, fileName) {
@@ -510,6 +871,60 @@
                 document.getElementById('resultsSection').style.display = 'none';
                 document.getElementById('uploadArea').classList.remove('dragover');
                 isUploading = false;
+            }
+
+            function startPollingFallback(uploadId, fileName) {
+                console.log('Starting polling fallback for upload:', uploadId);
+                updateProgress(100, 'SSE connection failed, using polling fallback...');
+
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const response = await fetch(`/api/upload/status/${uploadId}`);
+                        if (!response.ok) {
+                            console.log('Upload status not found, stopping poll for upload:', uploadId);
+                            clearInterval(pollInterval);
+                            Utils.showAlert('Upload status not available', 'warning');
+                            return;
+                        }
+
+                        const status = await response.json();
+                        console.log('Poll status for upload:', uploadId, status);
+
+                        if (status.hasError) {
+                            console.log('Error detected via polling for upload:', uploadId, status.error);
+                            clearInterval(pollInterval);
+                            Utils.showAlert('Upload failed: ' + status.error, 'danger');
+                            resetUpload();
+                            return;
+                        }
+
+                        if (status.hasResult) {
+                            console.log('Upload completed via polling for upload:', uploadId, status.result);
+                            clearInterval(pollInterval);
+                            updateProgress(200, 'Processing complete!');
+                            setTimeout(() => {
+                                showResults(JSON.stringify(status.result), fileName);
+                            }, 1000);
+                            return;
+                        }
+
+                        // Update progress if available
+                        if (status.progress !== undefined) {
+                            updateProgress(100 + status.progress, status.message || 'Processing...');
+                        }
+
+                    } catch (error) {
+                        console.error('Polling error for upload:', uploadId, error);
+                        clearInterval(pollInterval);
+                        Utils.showAlert('Failed to check upload status', 'warning');
+                    }
+                }, 2000); // Poll every 2 seconds
+
+                // Stop polling after 5 minutes
+                setTimeout(() => {
+                    clearInterval(pollInterval);
+                    console.log('Polling timeout for upload:', uploadId);
+                }, 300000);
             }
         </script>
     </div>

@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,9 +44,20 @@ public class ChatEntryController {
      */
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        return userService.findByUsername(username).map(User::getId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        String principalName = authentication.getName();
+
+        // Try to find user by username first (traditional auth)
+        Optional<User> userOpt = userService.findByUsername(principalName);
+
+        // If not found, try to find by OAuth2 ID (OAuth2 auth)
+        if (userOpt.isEmpty() && authentication instanceof OAuth2AuthenticationToken) {
+            OAuth2AuthenticationToken oauthToken = (OAuth2AuthenticationToken) authentication;
+            String provider = oauthToken.getAuthorizedClientRegistrationId();
+            String oauthId = oauthToken.getName();
+            userOpt = userService.findByOauthProviderAndOauthId(provider, oauthId);
+        }
+
+        return userOpt.map(User::getId).orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     /**
