@@ -119,6 +119,14 @@ public class ChatEntryService {
     }
 
     /**
+     * Get all chat entries for a specific chat of a user (unpaginated)
+     */
+    @Transactional(readOnly = true)
+    public List<ChatEntryEntity> findByUserIdAndChatId(Long userId, String chatId) {
+        return chatEntryRepository.findByUserIdAndChatId(userId, chatId);
+    }
+
+    /**
      * Get all chat entries for a specific chat of a user
      */
     @Transactional(readOnly = true)

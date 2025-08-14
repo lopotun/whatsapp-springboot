@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -495,12 +496,35 @@ public class ChatUploadService {
     }
 
     /**
-     * Perform incremental update of chat entries, linking attachments
+     * Perform incremental update of chat entries, removing entries that are no longer present and
+     * adding new ones
      */
     private List<ChatEntryEntity> performIncrementalUpdate(Set<ChatEntry> newEntries, Long userId,
             String chatId, Map<String, String> filenameToHashMap) {
         log.info("Performing incremental update for {} entries, user: {}, chat: {}",
                 newEntries.size(), userId, chatId);
+
+        // Check if this chat already exists
+        boolean chatExists = chatService.chatExists(userId, chatId);
+
+        if (chatExists) {
+            log.info("Chat already exists for user: {} and chat: {}, performing incremental update",
+                    userId, chatId);
+            return performIncrementalUpdateForExistingChat(newEntries, userId, chatId,
+                    filenameToHashMap);
+        } else {
+            log.info("New chat for user: {} and chat: {}, performing bulk insert", userId, chatId);
+            return performBulkInsertForNewChat(newEntries, userId, chatId, filenameToHashMap);
+        }
+    }
+
+    /**
+     * Perform incremental update for existing chat - remove obsolete entries and process one by one
+     */
+    private List<ChatEntryEntity> performIncrementalUpdateForExistingChat(Set<ChatEntry> newEntries,
+            Long userId, String chatId, Map<String, String> filenameToHashMap) {
+        // First, remove entries that are no longer present in the new zip
+        removeObsoleteEntries(newEntries, userId, chatId);
 
         List<ChatEntryEntity> savedEntries = new ArrayList<>();
         int skippedDuplicates = 0;
@@ -576,6 +600,114 @@ public class ChatUploadService {
                 "Incremental update completed for user: {}, chat: {} - Saved: {}, Skipped duplicates: {}, Constraint violations: {}",
                 userId, chatId, savedEntries.size(), skippedDuplicates, constraintViolations);
         return savedEntries;
+    }
+
+    /**
+     * Perform bulk insert for new chat - no need to check for duplicates or remove obsolete entries
+     */
+    private List<ChatEntryEntity> performBulkInsertForNewChat(Set<ChatEntry> newEntries,
+            Long userId, String chatId, Map<String, String> filenameToHashMap) {
+        List<ChatEntry> entriesToSave = new ArrayList<>();
+
+        // Prepare all entries for bulk insert
+        for (ChatEntry entry : newEntries) {
+            // Create new entity
+            ChatEntryEntity entity = ChatEntryEntity.fromChatEntry(entry, userId, chatId);
+
+            // Link attachment if this entry has a filename that matches our hash map
+            if (entry.getFileName() != null && filenameToHashMap.containsKey(entry.getFileName())) {
+                String hash = filenameToHashMap.get(entry.getFileName());
+
+                // Find the attachment by hash
+                attachmentService.findByHash(hash).ifPresent(attachment -> {
+                    entity.setAttachment(attachment);
+                    entity.setPath(attachmentService.generateFilePath(hash));
+                });
+            }
+
+            // Convert back to ChatEntry for bulk save (since saveChatEntries expects ChatEntry
+            // objects)
+            ChatEntry entryToSave = ChatEntry.builder().localDateTime(entry.getLocalDateTime())
+                    .author(entry.getAuthor()).payload(entry.getPayload())
+                    .fileName(entry.getFileName()).type(entry.getType()).build();
+
+            entriesToSave.add(entryToSave);
+        }
+
+        // Perform bulk insert
+        List<ChatEntryEntity> savedEntries =
+                chatEntryService.saveChatEntries(entriesToSave, userId, chatId);
+
+        log.info("Bulk insert completed for new chat - user: {}, chat: {}, saved: {} entries",
+                userId, chatId, savedEntries.size());
+
+        return savedEntries;
+    }
+
+    /**
+     * Remove chat entries that are no longer present in the new zip file
+     */
+    private void removeObsoleteEntries(Set<ChatEntry> newEntries, Long userId, String chatId) {
+        try {
+            // Get all existing entries for this chat from the database
+            List<ChatEntryEntity> existingEntries =
+                    chatEntryService.findByUserIdAndChatId(userId, chatId);
+
+            if (existingEntries.isEmpty()) {
+                log.debug("No existing entries found for user: {} and chat: {}, skipping cleanup",
+                        userId, chatId);
+                return;
+            }
+
+            log.info(
+                    "Found {} existing entries for user: {} and chat: {}, checking for obsolete entries",
+                    existingEntries.size(), userId, chatId);
+
+            int removedCount = 0;
+            List<Long> entriesToRemove = new ArrayList<>();
+
+            // Check each existing entry to see if it's still present in the new zip
+            for (ChatEntryEntity existingEntry : existingEntries) {
+                boolean stillExists = newEntries.stream()
+                        .anyMatch(newEntry -> isSameEntry(existingEntry, newEntry));
+
+                if (!stillExists) {
+                    entriesToRemove.add(existingEntry.getId());
+                    removedCount++;
+                }
+            }
+
+            // Remove obsolete entries
+            if (!entriesToRemove.isEmpty()) {
+                log.info("Removing {} obsolete entries for user: {} and chat: {}", removedCount,
+                        userId, chatId);
+
+                for (Long entryId : entriesToRemove) {
+                    chatEntryService.deleteById(entryId, userId);
+                }
+
+                log.info("Successfully removed {} obsolete entries for user: {} and chat: {}",
+                        removedCount, userId, chatId);
+            } else {
+                log.info("No obsolete entries found for user: {} and chat: {}", userId, chatId);
+            }
+
+        } catch (Exception e) {
+            log.error("Error while removing obsolete entries for user: {} and chat: {} - {}",
+                    userId, chatId, e.getMessage(), e);
+            // Don't fail the entire upload if cleanup fails
+        }
+    }
+
+    /**
+     * Check if two chat entries represent the same message
+     */
+    private boolean isSameEntry(ChatEntryEntity existingEntry, ChatEntry newEntry) {
+        // Compare the key fields that identify a unique chat entry
+        return existingEntry.getLocalDateTime().equals(newEntry.getLocalDateTime())
+                && existingEntry.getAuthor().equals(newEntry.getAuthor())
+                && Objects.equals(existingEntry.getPayload(), newEntry.getPayload())
+                && Objects.equals(existingEntry.getFileName(), newEntry.getFileName());
     }
 
     private boolean isNewEntry(String line) {

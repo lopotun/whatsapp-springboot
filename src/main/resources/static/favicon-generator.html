@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WhatsApp Favicon Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f8f9fa;
+            text-align: center;
+        }
+        .favicon-container {
+            display: inline-block;
+            margin: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .favicon {
+            width: 32px;
+            height: 32px;
+            background: #25D366;
+            border-radius: 6px;
+            display: inline-block;
+            position: relative;
+            margin-bottom: 10px;
+        }
+        .chat-bubble {
+            width: 20px;
+            height: 16px;
+            background: white;
+            border-radius: 8px;
+            margin: 8px 6px;
+            position: relative;
+        }
+        .chat-bubble:after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 8px;
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid white;
+        }
+        .phone-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            background: #25D366;
+            border-radius: 2px;
+        }
+        .phone-icon:before {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 8px;
+            height: 8px;
+            background: #25D366;
+            border-radius: 1px;
+        }
+        .instructions {
+            max-width: 600px;
+            margin: 20px auto;
+            text-align: left;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📱 WhatsApp Favicon Generator</h1>
+    <p>This generates a WhatsApp-themed favicon for your site</p>
+
+    <div class="favicon-container">
+        <div class="favicon">
+            <div class="chat-bubble"></div>
+            <div class="phone-icon"></div>
+        </div>
+        <p><strong>32x32 Favicon</strong></p>
+    </div>
+
+    <div class="instructions">
+        <h3>How to create a proper favicon.ico:</h3>
+        <div class="step">
+            <strong>Step 1:</strong> Right-click on the favicon above and "Save image as..."
+        </div>
+        <div class="step">
+            <strong>Step 2:</strong> Use an online favicon generator (like favicon.io) to convert to .ico format
+        </div>
+        <div class="step">
+            <strong>Step 3:</strong> Replace the placeholder favicon.ico in your static folder
+        </div>
+        <div class="step">
+            <strong>Alternative:</strong> The SVG favicon will work in modern browsers and looks crisp at all sizes
+        </div>
+    </div>
+
+    <p><em>The SVG favicon is already working and will display in modern browsers!</em></p>
+</body>
+</html>

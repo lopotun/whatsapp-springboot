@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -15,7 +14,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,8 +48,7 @@ class ChatUploadServiceTest {
 
         @BeforeEach
         void setUp() {
-                // Mock the chat entry service to return existing chat IDs
-                when(chatEntryService.getChatIdsForUser(userId)).thenReturn(Arrays.asList(chatId));
+                // No setup needed for these tests
         }
 
         @Test
@@ -76,11 +73,7 @@ class ChatUploadServiceTest {
                 when(chatService.chatExists(anyLong(), anyString())).thenReturn(false)
                                 .thenReturn(true);
 
-                // Mock getChatIdsForUser to return empty list initially, then return any chat ID
-                // that starts with the pattern
-                when(chatEntryService.getChatIdsForUser(userId)).thenReturn(new ArrayList<>())
-                                .thenReturn(Arrays.asList("user1_testchattxt_123456_abc123"))
-                                .thenReturn(Arrays.asList("user1_testchattxt_123456_abc123"));
+
 
                 // Mock existing entries for incremental update (needed for the second upload)
                 List<ChatEntryEntity> existingEntries = Arrays.asList(
@@ -89,10 +82,8 @@ class ChatUploadServiceTest {
                                 createTestChatEntryEntity(3L, "John Doe", "How are you?"),
                                 createTestChatEntryEntity(4L, "Jane Doe", "I'm good!"));
 
-                org.springframework.data.domain.Page<ChatEntryEntity> existingPage =
-                                new org.springframework.data.domain.PageImpl<>(existingEntries);
-                when(chatEntryService.findByUserIdAndChatId(anyLong(), anyString(), anyInt(),
-                                anyInt())).thenReturn(existingPage);
+                when(chatEntryService.findByUserIdAndChatId(anyLong(), anyString()))
+                                .thenReturn(existingEntries);
 
                 // Mock the first save operation
                 List<ChatEntryEntity> firstSavedEntries = Arrays.asList(
@@ -112,16 +103,7 @@ class ChatUploadServiceTest {
                 assertTrue(firstResult.isSuccess());
                 assertEquals(4, firstResult.getTotalEntries());
 
-                // Mock the incremental update scenario
-                List<ChatEntryEntity> keptEntries = Arrays.asList(
-                                createTestChatEntryEntity(1L, "John Doe", "Hello, world!"),
-                                createTestChatEntryEntity(3L, "John Doe", "How are you?"),
-                                createTestChatEntryEntity(4L, "Jane Doe", "I'm good!"));
-                List<ChatEntryEntity> newEntries = Arrays.asList(createTestChatEntryEntity(5L,
-                                "John Doe", "Great!"));
 
-                when(chatEntryService.saveChatEntries(anyList(), eq(userId), anyString()))
-                                .thenReturn(keptEntries).thenReturn(newEntries);
 
                 // When - Second upload (incremental update)
                 ChatUploadService.UploadResult secondResult =
@@ -134,9 +116,8 @@ class ChatUploadServiceTest {
 
                 // Verify that incremental update was performed
                 verify(chatService, atLeastOnce()).chatExists(anyLong(), anyString());
-                verify(chatEntryService, times(4)).findByUserIdAndChatId(anyLong(), anyString(),
-                                anyInt(), anyInt());
-                verify(chatEntryService, times(1)).deleteById(anyLong());
+                verify(chatEntryService, times(1)).findByUserIdAndChatId(anyLong(), anyString());
+                verify(chatEntryService, times(3)).deleteById(anyLong(), anyLong());
 
                 // Verify that kept entries and new entries were saved
                 verify(chatEntryService, times(1)).saveChatEntries(anyList(), eq(userId),
@@ -154,8 +135,8 @@ class ChatUploadServiceTest {
                 when(chatService.chatExists(anyLong(), anyString())).thenReturn(false);
 
                 // Mock the save operation
-                List<ChatEntryEntity> savedEntries = Arrays.asList(createTestChatEntryEntity(1L,
-                                "John Doe", "Hello, world!"));
+                List<ChatEntryEntity> savedEntries = Arrays
+                                .asList(createTestChatEntryEntity(1L, "John Doe", "Hello, world!"));
                 when(chatEntryService.saveChatEntries(anyList(), eq(userId), anyString()))
                                 .thenReturn(savedEntries);
 
@@ -169,9 +150,8 @@ class ChatUploadServiceTest {
                 assertEquals(1, result.getTotalEntries());
 
                 // Verify that no incremental update was performed for new upload
-                verify(chatService, times(2)).chatExists(anyLong(), anyString());
-                verify(chatEntryService, never()).findByUserIdAndChatId(anyLong(), anyString(),
-                                anyInt(), anyInt());
+                verify(chatService, times(1)).chatExists(anyLong(), anyString());
+                verify(chatEntryService, never()).findByUserIdAndChatId(anyLong(), anyString());
                 verify(chatEntryService, never()).deleteByUserIdAndChatId(anyLong(), anyString());
                 verify(chatEntryService).saveChatEntries(anyList(), eq(userId), anyString());
         }
@@ -180,9 +160,7 @@ class ChatUploadServiceTest {
         void generateChatId_SameFilename_ShouldReturnSameChatId() {
                 // Given
                 String filename = "test_chat.txt";
-                String expectedBaseChatId = "user1_testchattxt";
-                when(chatEntryService.getChatIdsForUser(userId))
-                                .thenReturn(Arrays.asList(expectedBaseChatId + "_123456_abc123"));
+                String expectedChatId = "user1_test_chat";
 
                 // When
                 String chatId1 = chatUploadService.generateChatId(filename, userId);
@@ -190,7 +168,7 @@ class ChatUploadServiceTest {
 
                 // Then
                 assertEquals(chatId1, chatId2);
-                assertTrue(chatId1.startsWith(expectedBaseChatId + "_"));
+                assertEquals(expectedChatId, chatId1);
         }
 
         @Test
@@ -198,8 +176,8 @@ class ChatUploadServiceTest {
                 // Given
                 String filename1 = "chat1.txt";
                 String filename2 = "chat2.txt";
-                when(chatEntryService.getChatIdsForUser(userId))
-                                .thenReturn(Arrays.asList("user1_chat1txt_123456_abc123"));
+                String expectedChatId1 = "user1_chat1";
+                String expectedChatId2 = "user1_chat2";
 
                 // When
                 String chatId1 = chatUploadService.generateChatId(filename1, userId);
@@ -207,18 +185,13 @@ class ChatUploadServiceTest {
 
                 // Then
                 assertNotEquals(chatId1, chatId2);
-                assertTrue(chatId1.startsWith("user1_chat1txt_"));
-                assertTrue(chatId2.startsWith("user1_chat2txt_"));
+                assertEquals(expectedChatId1, chatId1);
+                assertEquals(expectedChatId2, chatId2);
         }
 
         private ChatEntryEntity createTestChatEntryEntity(Long id, String author, String payload) {
-                return ChatEntryEntity.builder()
-                                .id(id)
-                                .author(author)
-                                .payload(payload)
-                                .userId(userId)
-                                .chatId(chatId)
-                                .localDateTime(LocalDateTime.of(2023, 12, 25, 14, 30))
-                                .build();
+                return ChatEntryEntity.builder().id(id).author(author).payload(payload)
+                                .userId(userId).chatId(chatId)
+                                .localDateTime(LocalDateTime.of(2023, 12, 25, 14, 30)).build();
         }
 }

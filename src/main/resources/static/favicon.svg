@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- WhatsApp Green Background -->
+  <rect width="32" height="32" rx="6" fill="#25D366"/>
+
+  <!-- Chat Bubble with Tail -->
+  <path d="M8 8c0-1.1.9-2 2-2h12c1.1 0 2 .9 2 2v10c0 1.1-.9 2-2 2h-2l-4 4-4-4h-2c-1.1 0-2-.9-2-2V8z" fill="white"/>
+
+  <!-- Chat Bubble Tail -->
+  <path d="M18 20l-2 2-2-2" fill="white"/>
+
+  <!-- WhatsApp Phone Icon -->
+  <path d="M16 12c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-4 4c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm8 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" fill="#25D366"/>
+</svg>
