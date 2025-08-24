@@ -99,3 +99,4 @@ export LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=DEBUG
 - [Spring Boot External Configuration](https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-external-config)
 - [Spring Security OAuth2](https://docs.spring.io/spring-security/site/docs/current/reference/html5/#oauth2login)
 - [PostgreSQL Security](https://www.postgresql.org/docs/current/security.html)
+
