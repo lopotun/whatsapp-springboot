@@ -1,0 +1,68 @@
+# WhatsApp Chat Viewer - Cursor AI Rules
+
+## Project Context
+This is a Spring Boot application for parsing and managing WhatsApp chat exports. Users upload zipped chat files, and the system stores chat entries in a database and multimedia files in a separate file system.
+
+## Critical Security Rules
+- ALWAYS include userId parameter in all database queries and service methods
+- NEVER allow cross-user data access - users can only access their own data
+- ALWAYS validate user ownership before any data operation
+- All repository methods must include userId as the first parameter
+- All service methods must verify user ownership
+
+## Code Standards
+- Use Java 21+ features
+- Use Spring Boot 3.x
+- Use Lombok for reducing boilerplate
+- Follow Java naming conventions
+- Include Javadoc for public methods
+- Use snake_case for database tables and columns
+
+## Database Rules
+- All queries must be user-scoped (include userId)
+- Use pagination for large result sets
+- Include proper indexes for performance
+- Use created_at and updated_at timestamps
+- Use soft deletes with status field
+
+## File Storage
+- Multimedia files are stored separately from database
+- File names are based on SHA256 hash of content
+- Hierarchical directory structure: hash.substring(0,3)/hash.substring(3,6)/hash
+- Support multiple storage providers (local, NFS, S3, GCP)
+
+## API Design
+- Use RESTful principles
+- Include API versioning in URL path
+- Always support pagination for list endpoints
+- Use consistent error response format
+- Use kebab-case for URLs
+
+## Testing Requirements
+- Write unit tests for all service methods
+- Write integration tests for API endpoints
+- Include security tests for user isolation
+- Test performance for large datasets
+
+## Error Handling
+- Use consistent exception types
+- Provide user-friendly error messages
+- Include appropriate logging
+- Never expose internal system details
+
+## Performance Considerations
+- Support up to 50,000 users
+- Each user can have up to 1,000 chats
+- Sub-second response times for searches
+- Use database connection pooling
+- Implement proper indexing strategy
+
+## When reviewing or generating code:
+1. Always check for userId inclusion in database operations
+2. Verify user isolation is maintained
+3. Ensure proper error handling
+4. Check for performance implications
+5. Validate security boundaries
+6. Include appropriate logging
+7. Follow naming conventions
+8. Add necessary tests

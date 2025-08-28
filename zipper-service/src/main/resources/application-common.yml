@@ -1,0 +1,58 @@
+# zipper-service/src/main/resources/application-common.yml
+# Common configuration shared across all profiles (dev, prod, test)
+
+spring:
+  # Database Configuration (shared across profiles)
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # JPA Configuration (shared across profiles)
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: ${HIBERNATE_FORMAT_SQL:false}
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  # File Upload Configuration (shared across profiles)
+  servlet:
+    multipart:
+      max-file-size: 250MB
+      max-request-size: 250MB
+
+# Logging Configuration (shared across profiles)
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    net.kem.whatsapp.zipper: ${LOG_LEVEL_APP:INFO}
+    org.hibernate.SQL: ${HIBERNATE_SHOW_SQL:false}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${HIBERNATE_SHOW_SQL:false}
+
+# Application Configuration (shared across profiles)
+app:
+  # File Storage Configuration (shared across profiles)
+  file-storage:
+    base-path: ${ZIPPER_FILE_STORAGE_PATH:/tmp/zipper-storage}
+    temp-path: ${ZIPPER_TEMP_STORAGE_PATH:/tmp/zipper-temp}
+    multimedia-path: ${MULTIMEDIA_STORAGE_PATH:/tmp/multimedia-files}
+
+  # Multimedia Storage Configuration (required by shared FileNamingService)
+  multimedia:
+    storage:
+      path: ${MULTIMEDIA_STORAGE_PATH:/tmp/multimedia-files}
+
+  # Job Processing Configuration (shared across profiles)
+  job-processing:
+    max-concurrent-jobs: ${MAX_CONCURRENT_JOBS:3}
+    job-timeout-minutes: ${JOB_TIMEOUT_MINUTES:30}
+    retry-attempts: ${RETRY_ATTEMPTS:3}

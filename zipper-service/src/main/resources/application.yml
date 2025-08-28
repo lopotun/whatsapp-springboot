@@ -1,0 +1,32 @@
+# zipper-service/src/main/resources/application.yml
+# Zipper service specific configuration - includes common profile
+
+spring:
+  application:
+    name: whatsapp-zipper-service
+
+  profiles:
+    active: dev # Set dev as default profile
+    include: common
+
+# Server Configuration (zipper service specific)
+server:
+  port: ${ZIPPER_SERVICE_PORT:8081}
+
+# Zipper service specific application configuration
+app:
+  main-service:
+    base-url: ${MAIN_SERVICE_URL:http://localhost:8080}
+    notification-url: ${MAIN_SERVICE_NOTIFICATION_URL:http://localhost:8080/api/v1/zipper/notifications}
+    api-key: ${MAIN_SERVICE_API_KEY:your-secret-api-key}
+
+# Zipper service specific logging overrides
+logging:
+  level:
+    net.kem.whatsapp.zipper: ${LOG_LEVEL_APP:DEBUG}
+
+# Zipper service specific JPA overrides
+spring.jpa:
+  hibernate:
+    ddl-auto: ${JPA_DDL_AUTO:update}
+  show-sql: ${JPA_SHOW_SQL:false}

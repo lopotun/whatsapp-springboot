@@ -1,0 +1,37 @@
+# main-service/src/main/resources/application-dev.yml
+spring:
+  # Development database configuration
+  datasource:
+    url: ${MAIN_SERVICE_DB_URL:jdbc:postgresql://localhost:25432/whatsapp_chatviewer}
+    username: ${MAIN_SERVICE_DB_USERNAME:postgres}
+    password: ${MAIN_SERVICE_DB_PASSWORD:password}
+
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: create-drop
+
+  # OAuth2 Configuration for Development
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${WHATSAPPCHATVIEWER_GOOGLE_CLIENT_ID}
+            client-secret: ${WHATSAPPCHATVIEWER_GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
+logging:
+  level:
+    net.kem.whatsapp: DEBUG
+    org.springframework.security: DEBUG
+
+app:
+  file-storage:
+    base-path: ./dev-storage
+    temp-path: ./dev-temp
+    multimedia-path: ./dev-multimedia

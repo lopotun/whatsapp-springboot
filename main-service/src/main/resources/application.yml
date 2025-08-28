@@ -1,0 +1,50 @@
+# main-service/src/main/resources/application.yml
+# Main service specific configuration - includes common profile
+
+spring:
+  application:
+    name: whatsapp-springboot
+
+  profiles:
+    active: dev # Set dev as default profile
+    include: common
+
+  # Main service specific security overrides
+  security:
+    user:
+      name: ${WHATSAPPCHATVIEWER_ADMIN_USERNAME:admin}
+      password: ${WHATSAPPCHATVIEWER_ADMIN_PASSWORD:password}
+
+    # Google OAuth2 Configuration (main service specific)
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${WHATSAPPCHATVIEWER_GOOGLE_CLIENT_ID}
+            client-secret: ${WHATSAPPCHATVIEWER_GOOGLE_CLIENT_SECRET}
+
+  # Disable Spring Boot Docker Compose auto-startup
+  docker:
+    compose:
+      enabled: false
+
+# Server Configuration (main service specific)
+server:
+  port: ${MAIN_SERVICE_PORT:8080}
+
+# Main service specific application configuration
+app:
+  zipper-service:
+    base-url: ${ZIPPER_SERVICE_URL:http://localhost:8081}
+    api-key: ${ZIPPER_SERVICE_API_KEY:your-secret-api-key}
+
+  # Multimedia Storage Configuration (required by shared FileNamingService)
+  multimedia:
+    storage:
+      path: ${MULTIMEDIA_STORAGE_PATH:/tmp/multimedia-files}
+
+# Main service specific logging overrides
+logging:
+  level:
+    net.kem.whatsapp: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:DEBUG}

@@ -7,6 +7,7 @@ This application is a Spring Boot-based system designed to parse, store, and man
 ## 🏗️ Architecture Principles
 
 ### Core Components
+
 - **Spring Boot Application**: Main application framework
 - **Database**: Stores user data, chat entries, and file mappings
 - **File Storage**: Separate storage for multimedia files (local/NFS/S3/GCP)
@@ -14,6 +15,7 @@ This application is a Spring Boot-based system designed to parse, store, and man
 - **Web UI**: Browser-based interface for chat management
 
 ### Data Flow
+
 1. User uploads zipped WhatsApp chat export
 2. System parses chat text and extracts multimedia files
 3. Multimedia files are hashed (SHA256) and stored in file system
@@ -23,6 +25,7 @@ This application is a Spring Boot-based system designed to parse, store, and man
 ## 🔒 Security Requirements
 
 ### User Isolation (CRITICAL)
+
 - **Strict user isolation**: Users can ONLY access their own chats
 - **No cross-user data access**: Impossible for users to access other users' data
 - **User-scoped queries**: All database queries must include user ID filter
@@ -30,6 +33,7 @@ This application is a Spring Boot-based system designed to parse, store, and man
 - **Authorization checks**: Verify user ownership before any data operation
 
 ### Implementation Rules
+
 ```java
 // ✅ CORRECT - Always filter by userId
 @Query("SELECT ce FROM ChatEntryEntity ce WHERE ce.userId = :userId AND ...")
@@ -41,6 +45,7 @@ Page<ChatEntryEntity> findByCriteria(...);
 ```
 
 ### Security Checklist
+
 - [ ] All repository methods include userId parameter
 - [ ] All service methods verify user ownership
 - [ ] All controller endpoints require authentication
@@ -52,12 +57,14 @@ Page<ChatEntryEntity> findByCriteria(...);
 ## 📊 Performance & Scalability
 
 ### Database Requirements
+
 - **Capacity**: Support up to 50,000 users
 - **Per-user limit**: Up to 1,000 different chats per user
 - **Total capacity**: 50M potential chat entries
 - **Performance**: Sub-second response times for searches
 
 ### Database Design Rules
+
 ```sql
 -- Required indexes for performance
 CREATE INDEX idx_chat_entries_user_id ON chat_entries(user_id);
@@ -69,6 +76,7 @@ CREATE INDEX idx_chat_entries_created_at ON chat_entries(created_at);
 ```
 
 ### Query Optimization
+
 - Always use pagination for large result sets
 - Implement database connection pooling
 - Use appropriate database indexes
@@ -77,12 +85,14 @@ CREATE INDEX idx_chat_entries_created_at ON chat_entries(created_at);
 ## 📁 File Storage Architecture
 
 ### Multimedia File Handling
+
 - **Storage**: Separate from database (local/NFS/S3/GCP)
 - **Naming**: SHA256 hash of file content
 - **Deduplication**: Same content = same filename (saves storage)
 - **Organization**: Hierarchical directory structure based on hash
 
 ### File Storage Rules
+
 ```java
 // File naming convention
 String hash = calculateSHA256(fileContent);
@@ -92,6 +102,7 @@ String fileName = hash.substring(0, 3) + "/" + hash.substring(3, 6) + "/" + hash
 ```
 
 ### Storage Providers
+
 - **Local**: `./multimedia-files/`
 - **NFS**: Mounted network storage
 - **S3**: AWS S3 bucket
@@ -101,6 +112,7 @@ String fileName = hash.substring(0, 3) + "/" + hash.substring(3, 6) + "/" + hash
 ## 🔍 Search & Query Capabilities
 
 ### Supported Search Types
+
 - **Keyword search**: Full-text search in chat content
 - **Time range**: Filter by date/time
 - **Author filtering**: Search by message sender
@@ -109,6 +121,7 @@ String fileName = hash.substring(0, 3) + "/" + hash.substring(3, 6) + "/" + hash
 - **Combined searches**: Multiple criteria together
 
 ### Search Implementation
+
 ```java
 // Example search method signature
 Page<ChatEntryEntity> searchChatEntries(
@@ -126,6 +139,7 @@ Page<ChatEntryEntity> searchChatEntries(
 ## 🚀 API Design
 
 ### REST API Principles
+
 - **RESTful design**: Use HTTP methods appropriately
 - **Consistent naming**: Use kebab-case for URLs
 - **Versioning**: Include API version in URL path
@@ -133,6 +147,7 @@ Page<ChatEntryEntity> searchChatEntries(
 - **Error handling**: Consistent error response format
 
 ### API Endpoints Structure
+
 ```
 /api/v1/upload/text          - Upload text chat file
 /api/v1/upload/zip           - Upload zipped chat file
@@ -143,6 +158,7 @@ Page<ChatEntryEntity> searchChatEntries(
 ```
 
 ### Response Format
+
 ```json
 {
   "success": true,
@@ -160,6 +176,7 @@ Page<ChatEntryEntity> searchChatEntries(
 ## 🎨 User Interface
 
 ### Web UI Requirements
+
 - **Responsive design**: Works on desktop and mobile
 - **Modern interface**: Clean, intuitive design
 - **Real-time feedback**: Progress indicators for uploads
@@ -167,6 +184,7 @@ Page<ChatEntryEntity> searchChatEntries(
 - **File management**: Upload, view, delete chats
 
 ### UI Components
+
 - **Upload area**: Drag & drop file upload
 - **Search panel**: Multiple filter options
 - **Results view**: Paginated chat entry display
@@ -176,12 +194,14 @@ Page<ChatEntryEntity> searchChatEntries(
 ## 📱 Future Mobile Support
 
 ### API Preparation
+
 - **Mobile-friendly endpoints**: Optimize for mobile clients
 - **Authentication**: JWT tokens for mobile apps
 - **Push notifications**: Prepare for future notification system
 - **Offline support**: Consider offline data synchronization
 
 ### Mobile Considerations
+
 - **Efficient data transfer**: Minimize payload sizes
 - **Image optimization**: Thumbnails for mobile display
 - **Battery optimization**: Efficient API calls
@@ -190,6 +210,7 @@ Page<ChatEntryEntity> searchChatEntries(
 ## 🧪 Testing Requirements
 
 ### Test Coverage
+
 - **Unit tests**: All service methods
 - **Integration tests**: API endpoints
 - **Security tests**: User isolation verification
@@ -197,6 +218,7 @@ Page<ChatEntryEntity> searchChatEntries(
 - **File storage tests**: All storage providers
 
 ### Security Testing
+
 ```java
 // Test that users cannot access other users' data
 @Test
@@ -210,6 +232,7 @@ void userCannotAccessOtherUserData() {
 ## 📋 Development Guidelines
 
 ### Code Standards
+
 - **Java 17+**: Use modern Java features
 - **Spring Boot 3.x**: Latest stable version
 - **Lombok**: Reduce boilerplate code
@@ -217,12 +240,14 @@ void userCannotAccessOtherUserData() {
 - **Documentation**: Javadoc for public methods
 
 ### Database Conventions
+
 - **Naming**: snake_case for tables and columns
 - **Timestamps**: Include created_at and updated_at
 - **Soft deletes**: Use status field instead of hard deletes
 - **Foreign keys**: Proper relationships with constraints
 
 ### Error Handling
+
 - **Consistent exceptions**: Use custom exception types
 - **User-friendly messages**: Clear error descriptions
 - **Logging**: Appropriate log levels and context
@@ -231,9 +256,10 @@ void userCannotAccessOtherUserData() {
 ## 🔧 Configuration
 
 ### Environment Variables
+
 ```properties
 # Database
-spring.datasource.url=jdbc:postgresql://localhost:15432/whatsapp_chat
+spring.datasource.url=jdbc:postgresql://localhost:25432/whatsapp_chat
 spring.datasource.username=${DB_USERNAME}
 spring.datasource.password=${DB_PASSWORD}
 
@@ -256,6 +282,7 @@ spring.jpa.properties.hibernate.order_updates=true
 ## 📈 Monitoring & Observability
 
 ### Metrics to Track
+
 - **Upload success/failure rates**
 - **Search response times**
 - **Database query performance**
@@ -264,6 +291,7 @@ spring.jpa.properties.hibernate.order_updates=true
 - **Error rates and types**
 
 ### Logging Strategy
+
 - **Structured logging**: JSON format for easy parsing
 - **Correlation IDs**: Track requests across services
 - **User context**: Include user ID in relevant logs
@@ -290,4 +318,4 @@ spring.jpa.properties.hibernate.order_updates=true
 
 ---
 
-*This document should be reviewed and updated regularly as the project evolves.* 
+_This document should be reviewed and updated regularly as the project evolves._

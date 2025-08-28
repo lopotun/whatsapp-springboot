@@ -42,8 +42,10 @@ build/
 *.keystore
 .env
 .env.local
+.env.dev
 .env.production
 .env.staging
+.env.*
 secrets/
 credentials/
 config/secrets/

@@ -2,6 +2,38 @@
 
 A Spring Boot application for processing and searching WhatsApp exported chats with comprehensive database storage and search capabilities.
 
+## 🚀 **Quick Start**
+
+### **Prerequisites**
+
+- Java 21+
+- Docker and Docker Compose
+- **Note: Always use `./mvnw` instead of `mvn` in this project**
+
+### **Development Setup**
+
+```bash
+# Setup development environment
+chmod +x scripts/dev-setup.sh
+./scripts/dev-setup.sh
+
+# Start in development mode
+./start-dev.sh
+```
+
+### **Production Setup**
+
+```bash
+# Start in production mode
+./start-prod.sh
+```
+
+## 📚 **Documentation**
+
+- [Multi-Module Architecture](MULTI_MODULE_ARCHITECTURE.md)
+- [Maven Wrapper Convention](MVNW_CONVENTION.md)
+- [Microservice Architecture](MICROSERVICE_ARCHITECTURE.md)
+
 ## Features
 
 - **Chat Processing**: Parse WhatsApp exported chat files and extract multimedia attachments
@@ -20,6 +52,7 @@ A Spring Boot application for processing and searching WhatsApp exported chats w
 ## Database Schema
 
 ### ChatEntry Entity
+
 - `id`: Primary key
 - `timestamp`: Original timestamp string from WhatsApp
 - `payload`: Message content
@@ -32,12 +65,14 @@ A Spring Boot application for processing and searching WhatsApp exported chats w
 - `updatedAt`: Record update timestamp
 
 ### Attachment Entity
+
 - `hash`: SHA-256 content hash (primary key)
 - `lastAdded`: Timestamp when first added
 - `status`: Attachment status
 - `reserved1`, `reserved2`: Reserved columns for future use
 
 ### Location Entity
+
 - `id`: Primary key
 - `realFileName`: Original filename
 - `clientId`: Client identifier
@@ -50,21 +85,25 @@ A Spring Boot application for processing and searching WhatsApp exported chats w
 ### Chat Entry Search
 
 #### Basic Search
+
 ```
 GET /api/chat-entries/search?author=John&type=TEXT&startDate=2023-12-25T00:00:00&endDate=2023-12-25T23:59:59&hasAttachment=false&page=0&size=20
 ```
 
 #### Keyword Search
+
 ```
 GET /api/chat-entries/search/keyword?keyword=hello&page=0&size=20
 ```
 
 #### Advanced Search
+
 ```
 GET /api/chat-entries/search/advanced?keyword=hello&author=John&type=TEXT&startDate=2023-12-25T00:00:00&endDate=2023-12-25T23:59:59&page=0&size=20
 ```
 
 #### Specific Searches
+
 ```
 GET /api/chat-entries/author/{author}
 GET /api/chat-entries/type/{type}
@@ -76,6 +115,7 @@ GET /api/chat-entries/attachment/{hash}
 ```
 
 #### Statistics
+
 ```
 GET /api/chat-entries/stats/author/{author}
 GET /api/chat-entries/stats/type/{type}
@@ -83,6 +123,7 @@ GET /api/chat-entries/stats/date-range?start=2023-12-25T00:00:00&end=2023-12-25T
 ```
 
 #### Management
+
 ```
 GET /api/chat-entries/{id}
 GET /api/chat-entries?page=0&size=20
@@ -91,6 +132,7 @@ DELETE /api/chat-entries/{id}
 ```
 
 ### Attachment Management
+
 ```
 GET /api/attachments
 GET /api/attachments/{hash}
@@ -103,6 +145,7 @@ POST /api/attachments/{hash}/locations
 ## Setup and Installation
 
 ### Prerequisites
+
 - Java 21
 - Maven 3.6+
 - Docker (for PostgreSQL)
@@ -110,6 +153,7 @@ POST /api/attachments/{hash}/locations
 ### Database Setup
 
 1. Start PostgreSQL using Docker Compose:
+
 ```bash
 docker-compose up -d postgres
 ```
@@ -118,23 +162,28 @@ docker-compose up -d postgres
 
 ### Application Configuration
 
-The application uses different configurations for development and testing:
+The application uses different configurations for development and production:
 
 - **Production/Development**: PostgreSQL database
-- **Testing**: H2 in-memory database
+- **Testing**: PostgreSQL database (same as production for consistency)
 
 Configuration files:
-- `application.properties`: Production configuration with PostgreSQL
-- `application-test.properties`: Test configuration with H2
+
+- `application.yml`: Base configuration with common settings
+- `application-common.yml`: Shared configuration across all profiles
+- `application-dev.yml`: Development profile with local PostgreSQL
+- `application-prod.yml`: Production profile with production PostgreSQL
 
 ### Running the Application
 
 1. Start the database:
+
 ```bash
 docker-compose up -d postgres
 ```
 
 2. Run the application:
+
 ```bash
 ./mvnw spring-boot:run
 ```
@@ -185,6 +234,7 @@ Multimedia files are stored using a content-addressed approach:
 ## Development
 
 ### Project Structure
+
 ```
 src/
 ├── main/java/net/kem/whatsapp/chatviewer/whatsappspringboot/
@@ -210,21 +260,25 @@ src/
 ## API Examples
 
 ### Search for messages from a specific author in a date range
+
 ```bash
 curl "http://localhost:8080/api/chat-entries/search?author=John%20Doe&startDate=2023-12-25T00:00:00&endDate=2023-12-25T23:59:59"
 ```
 
 ### Search for messages containing a keyword
+
 ```bash
 curl "http://localhost:8080/api/chat-entries/search/keyword?keyword=hello"
 ```
 
 ### Get statistics for message types
+
 ```bash
 curl "http://localhost:8080/api/chat-entries/stats/type/TEXT"
 ```
 
 ### Advanced search with multiple criteria
+
 ```bash
 curl "http://localhost:8080/api/chat-entries/search/advanced?keyword=meeting&author=John%20Doe&type=TEXT&startDate=2023-12-25T00:00:00&endDate=2023-12-25T23:59:59"
 ```
@@ -240,4 +294,4 @@ curl "http://localhost:8080/api/chat-entries/search/advanced?keyword=meeting&aut
 
 ## License
 
-This project is licensed under the MIT License. 
+This project is licensed under the MIT License.

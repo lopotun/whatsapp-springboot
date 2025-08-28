@@ -20,7 +20,7 @@ else
     echo "❌ env.example not found. Creating basic .env file"
     cat > .env << EOF
 # Database Configuration
-WHATSAPPCHATVIEWER_DATABASE_URL=jdbc:postgresql://localhost:5432/whatsapp_chatviewer
+WHATSAPPCHATVIEWER_DATABASE_URL=jdbc:postgresql://localhost:25432/whatsapp_chatviewer
 WHATSAPPCHATVIEWER_DB_USERNAME=postgres
 WHATSAPPCHATVIEWER_DB_PASSWORD=password
 

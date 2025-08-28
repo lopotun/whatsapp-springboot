@@ -5,6 +5,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 ## Features
 
 ### 🏠 Home Page
+
 - **Welcome Dashboard**: Overview of the application with quick action buttons
 - **Statistics Cards**: Display total messages, participants, attachments, and date range
 - **Recent Messages**: Show the latest 5 chat entries with author, type, and timestamp
@@ -12,6 +13,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 - **Quick Actions**: Direct links to upload, search, attachments, and statistics
 
 ### 📤 Upload Page
+
 - **Dual Upload Modes**: Support for both chat text files (.txt) and ZIP archives
 - **Drag & Drop Interface**: Modern file upload with visual feedback
 - **Progress Tracking**: Real-time upload progress with percentage and status
@@ -19,6 +21,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 - **Error Handling**: User-friendly error messages and validation
 
 ### 🔍 Search Page
+
 - **Advanced Search Filters**:
   - Keyword search in message content and author names
   - Author filter for specific participants
@@ -38,6 +41,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
   - Responsive design for mobile and desktop
 
 ### 📎 Attachments Page
+
 - **Attachment Management**:
   - Search by file hash
   - Filter by status (Active, Inactive, Deleted)
@@ -55,6 +59,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
   - Last added timestamp
 
 ### 📊 Statistics Page
+
 - **Overview Statistics**:
   - Total messages count
   - Unique participants
@@ -73,14 +78,15 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 ## Technology Stack
 
 ### Backend
+
 - **Spring Boot 3.5.0**: Main application framework
 - **Spring Security**: Security configuration (disabled for demo)
 - **Spring Data JPA**: Database access layer
 - **Thymeleaf**: Server-side templating engine
-- **H2 Database**: In-memory database for development
-- **PostgreSQL**: Production database (configured)
+- **PostgreSQL**: Primary database for all environments
 
 ### Frontend
+
 - **Bootstrap 5.3.0**: CSS framework for responsive design
 - **Bootstrap Icons**: Icon library
 - **Chart.js**: Interactive charts and visualizations
@@ -88,6 +94,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 - **CSS3**: Custom styling with CSS variables
 
 ### Key Features
+
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
 - **Modern UI**: Clean, professional interface with WhatsApp-inspired colors
 - **Real-time Updates**: Live progress tracking and dynamic content loading
@@ -98,19 +105,22 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 ## Getting Started
 
 ### Prerequisites
+
 - Java 21 or higher
 - Maven 3.6 or higher
-- PostgreSQL (optional, H2 is used by default)
+- PostgreSQL (required for all environments)
 
 ### Running the Application
 
 1. **Clone the repository**:
+
    ```bash
    git clone <repository-url>
    cd whatsapp-springboot
    ```
 
 2. **Start the application**:
+
    ```bash
    ./mvnw spring-boot:run
    ```
@@ -121,6 +131,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 ### Using the Frontend
 
 1. **Upload Chat Files**:
+
    - Go to the Upload page
    - Choose between chat text file or ZIP archive
    - Drag and drop files or click to browse
@@ -128,6 +139,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
    - View processing results
 
 2. **Search Messages**:
+
    - Navigate to the Search page
    - Use filters to narrow down results
    - Try quick search presets
@@ -135,6 +147,7 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
    - Click on messages for details
 
 3. **Manage Attachments**:
+
    - Visit the Attachments page
    - Search and filter attachments
    - View attachment details
@@ -151,16 +164,19 @@ A modern, responsive web interface for the WhatsApp Chat Viewer application buil
 The frontend communicates with the following REST API endpoints:
 
 ### Chat Management
+
 - `POST /api/chat/upload` - Upload chat text file
 - `POST /api/chat/upload-zip` - Upload ZIP archive with multimedia
 
 ### Chat Entries
+
 - `GET /api/chat-entries` - Get all entries with pagination
 - `GET /api/chat-entries/search` - Search with multiple criteria
 - `GET /api/chat-entries/search/keyword` - Keyword search
 - `GET /api/chat-entries/search/advanced` - Advanced search
 
 ### Attachments
+
 - `GET /api/attachments/hash/{hash}` - Get attachment by hash
 - `GET /api/attachments/status/{status}` - Get attachments by status
 - `GET /api/attachments/locations/client/{clientId}` - Get locations by client
@@ -169,19 +185,21 @@ The frontend communicates with the following REST API endpoints:
 ## Customization
 
 ### Styling
+
 The application uses CSS variables for easy customization:
 
 ```css
 :root {
-    --primary-color: #25D366;    /* WhatsApp green */
-    --secondary-color: #128C7E;  /* Dark green */
-    --accent-color: #34B7F1;     /* Blue */
-    --dark-color: #075E54;       /* Very dark green */
-    --light-color: #DCF8C6;      /* Light green */
+  --primary-color: #25d366; /* WhatsApp green */
+  --secondary-color: #128c7e; /* Dark green */
+  --accent-color: #34b7f1; /* Blue */
+  --dark-color: #075e54; /* Very dark green */
+  --light-color: #dcf8c6; /* Light green */
 }
 ```
 
 ### Adding New Features
+
 1. Create new Thymeleaf templates in `src/main/resources/templates/`
 2. Add corresponding controller methods in `WebController.java`
 3. Update navigation in `layout.html`
@@ -204,4 +222,4 @@ The application uses CSS variables for easy customization:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.

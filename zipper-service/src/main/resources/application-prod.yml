@@ -1,0 +1,29 @@
+# zipper-service/src/main/resources/application-prod.yml
+spring:
+  # Production database configuration
+  datasource:
+    url: ${MAIN_SERVICE_DB_URL:jdbc:postgresql://prod-db:5432/whatsapp_chatviewer}
+    username: ${MAIN_SERVICE_DB_USERNAME:postgres}
+    password: ${MAIN_SERVICE_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 8
+
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    net.kem.whatsapp.zipper: INFO
+
+app:
+  job-processing:
+    max-concurrent-jobs: 5
+    job-timeout-minutes: 60
+
+  file-storage:
+    base-path: /var/whatsapp/zipper-storage
+    temp-path: /var/whatsapp/zipper-temp
+    multimedia-path: /var/whatsapp/multimedia

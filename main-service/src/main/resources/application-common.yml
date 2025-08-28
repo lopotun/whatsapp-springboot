@@ -1,0 +1,70 @@
+# main-service/src/main/resources/application-common.yml
+# Common configuration shared across all profiles (dev, prod, test)
+
+spring:
+  # Database Configuration (shared across profiles)
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # JPA Configuration (shared across profiles)
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: ${HIBERNATE_FORMAT_SQL:false}
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  # Security Configuration (shared across profiles)
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
+  # File Upload Configuration (shared across profiles)
+  servlet:
+    multipart:
+      max-file-size: 250MB
+      max-request-size: 250MB
+
+  # Session Configuration (shared across profiles)
+  session:
+    timeout: 30m
+
+# Logging Configuration (shared across profiles)
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    net.kem.whatsapp: ${LOG_LEVEL_APP:INFO}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
+    org.hibernate.SQL: ${HIBERNATE_SHOW_SQL:false}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${HIBERNATE_SHOW_SQL:false}
+
+# Application Configuration (shared across profiles)
+app:
+  # File Storage Configuration (shared across profiles)
+  file-storage:
+    base-path: ${FILE_STORAGE_PATH:/tmp/whatsapp-storage}
+    temp-path: ${TEMP_STORAGE_PATH:/tmp/whatsapp-temp}
+    multimedia-path: ${MULTIMEDIA_STORAGE_PATH:/tmp/multimedia-files}
+
+  # Security Configuration (shared across profiles)
+  security:
+    jwt:
+      secret: ${JWT_SECRET:your-secret-key}
+      expiration: ${JWT_EXPIRATION:86400000}

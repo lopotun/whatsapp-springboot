@@ -1,0 +1,34 @@
+# zipper-service/src/main/resources/application-dev.yml
+# Development profile specific configuration
+
+spring:
+  # Development database configuration
+  datasource:
+    url: ${MAIN_SERVICE_DB_URL:jdbc:postgresql://localhost:25432/whatsapp_chatviewer}
+    username: ${MAIN_SERVICE_DB_USERNAME:postgres}
+    password: ${MAIN_SERVICE_DB_PASSWORD:password}
+
+  # Development JPA settings
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: create-drop
+
+# Development logging
+logging:
+  level:
+    net.kem.whatsapp.zipper: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: DEBUG
+
+# Development application settings
+app:
+  job-processing:
+    max-concurrent-jobs: 2
+    job-timeout-minutes: 15
+    retry-attempts: 2
+
+  file-storage:
+    base-path: ./dev-zipper-storage
+    temp-path: ./dev-zipper-temp
+    multimedia-path: ./dev-multimedia
